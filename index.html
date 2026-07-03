@@ -1096,7 +1096,7 @@ function WeekView({ week, log, onBack, onOpen }) {
           const r = log[s.id] || {};
           const isDone = !!r.done;
           return html`
-            <button key=${s.id} onClick=${()=>onOpen(s)} style=${{
+            <button key=${s.id} onClick=${()=>onOpen({...s, week: week.week})} style=${{
               textAlign:"left",background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",
               borderRadius:"var(--border-radius-lg)",padding:"16px 18px",display:"flex",alignItems:"center",gap:14,cursor:"pointer"
             }}>
