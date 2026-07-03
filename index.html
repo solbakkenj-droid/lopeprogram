@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Løpeprogram</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --color-background-primary: #ffffff;
+      --color-background-secondary: #f5f5f7;
+      --color-background-info: #eef4ff;
+      --color-background-success: #e8f8f2;
+      --color-text-primary: #1a1a1a;
+      --color-text-secondary: #666;
+      --color-text-tertiary: #aaa;
+      --color-text-info: #2563eb;
+      --color-text-success: #1D9E75;
+      --color-border-tertiary: #e8e8e8;
+      --color-border-secondary: #ccc;
+      --color-border-info: #bfdbfe;
+      --border-radius-lg: 14px;
+      --border-radius-md: 8px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --color-background-primary: #1c1c1e;
+        --color-background-secondary: #111113;
+        --color-background-info: #1a2340;
+        --color-background-success: #0f2a1e;
+        --color-text-primary: #f0f0f0;
+        --color-text-secondary: #999;
+        --color-text-tertiary: #555;
+        --color-text-info: #60a5fa;
+        --color-text-success: #34d399;
+        --color-border-tertiary: #2e2e30;
+        --color-border-secondary: #444;
+        --color-border-info: #1e3a6e;
+      }
+    }
+
+    html, body { height: 100%; }
+    body { font-family: var(--font-sans); background: var(--color-background-secondary); color: var(--color-text-primary); -webkit-font-smoothing: antialiased; }
+    #root { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+    button {
+      font-family: var(--font-sans); cursor: pointer;
+      border: 0.5px solid var(--color-border-tertiary);
+      background: var(--color-background-secondary);
+      color: var(--color-text-primary);
+      border-radius: var(--border-radius-md);
+      transition: opacity 0.15s;
+    }
+    button:active { opacity: 0.7; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    textarea, input { font-family: var(--font-sans); color: var(--color-text-primary); background: transparent; }
+    input[type="date"], input[type="number"], input[type="text"] { padding: 9px 12px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 15px; }
+    .btn-primary { background: #1D9E75 !important; color: #fff !important; border: none !important; }
+    .btn-blue { background: #2563eb !important; color: #fff !important; border: none !important; }
+
+    body.force-dark {
+      --color-background-primary: #1c1c1e;
+      --color-background-secondary: #111113;
+      --color-background-info: #1a2340;
+      --color-background-success: #0f2a1e;
+      --color-text-primary: #f0f0f0;
+      --color-text-secondary: #999;
+      --color-text-tertiary: #555;
+      --color-text-info: #60a5fa;
+      --color-text-success: #34d399;
+      --color-border-tertiary: #2e2e30;
+      --color-border-secondary: #444;
+      --color-border-info: #1e3a6e;
+    }
+    body.force-light {
+      --color-background-primary: #ffffff;
+      --color-background-secondary: #f5f5f7;
+      --color-background-info: #eef4ff;
+      --color-background-success: #e8f8f2;
+      --color-text-primary: #1a1a1a;
+      --color-text-secondary: #666;
+      --color-text-tertiary: #aaa;
+      --color-text-info: #2563eb;
+      --color-text-success: #1D9E75;
+      --color-border-tertiary: #e8e8e8;
+      --color-border-secondary: #ccc;
+      --color-border-info: #bfdbfe;
+    }
+  </style>
+</head>
+<body>
+<div id="root"><p style="text-align:center;padding:40px;color:#888;font-family:sans-serif">Laster...</p></div>
+
+<script src="https://cdn.jsdelivr.net/npm/preact@10/dist/preact.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/preact@10/hooks/dist/hooks.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3/dist/htm.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+const { h, render, Fragment } = preact;
+const { useState, useEffect, useRef } = preactHooks;
+const html = htm.bind(h);
+
+// ─── SUPABASE ────────────────────────────────────────────────────────────────
+const SUPA_URL = "https://ooqvsgtatfuholkddolh.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vcXZzZ3RhdGZ1aG9sa2Rkb2xoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwNjU3ODUsImV4cCI6MjA5NzY0MTc4NX0.A3drza0_koI3fSeuPAWqgiFT9pZb0kV7EJMRmvA6QEY";
+const db = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+async function loadLog() {
+  const { data } = await db.from("lop_sessions").select("*");
+  const m = {};
+  (data || []).forEach(r => { m[r.session_id] = r; });
+  return m;
+}
+async function saveSession(row) {
+  await db.from("lop_sessions").upsert(row, { onConflict: "session_id" });
+}
+async function removeSession(id) {
+  await db.from("lop_sessions").delete().eq("session_id", id);
+}
+
+// ─── PROGRAM DATA ─────────────────────────────────────────────────────────────
+const PROGRAM = {
+  "programName": "12-ukers løpeprogram",
+  "description": "Nybegynner-/terskelprogram over 12 uker, 3 faser. Ukedag er veiledende – økter logges på den datoen de faktisk gjøres.",
+  "generalNotes": {
+    "oppsett": "Planen er lagt opp til tre til fire korte løpeturer i uken. Unntaket er de to første ukene som starter med to løpeturer. Hvis tid begrenser det, dropp én til to økter i uken, men spre de resterende utover uken.",
+    "regler": [
+      {
+        "tittel": "Regel 1 – Lytt til kroppen",
+        "tekst": "Kjenner du murring i muskulatur eller sener som begynner å gjøre vondt under øktene, avbryt umiddelbart. Ta kort vei tilbake på de aller første øktene. Skader tidlig kan gjøre reisen tilbake mye lengre enn du ønsker."
+      },
+      {
+        "tittel": "Regel 2 – Bruk snakketesten",
+        "tekst": "Ved terskelintensitet kan du ofte si tre til fem ord før du må trekke pusten. Korte fraser er mulig, hele setninger er ikke komfortabelt. Der det refereres til terskel i programmet, er dette akkurat der du skal være."
+      }
+    ]
+  },
+  "intensityTypes": {
+    "gange": "Gange",
+    "rask_gange": "Rask gange",
+    "svart_lett_jogg": "Svært lett jogg",
+    "lett_jogg": "Lett jogg",
+    "jogg": "Jogg",
+    "rask_jogg": "Rask jogg",
+    "litt_raskere": "Litt raskere",
+    "terskel": "Terskel",
+    "rolig_lop": "Rolig løp",
+    "lett_jogg_gange": "Lett jogg eller gange",
+    "pause": "Pause",
+    "hvile": "Hvile",
+    "test": "Test"
+  },
+  "phases": [
+    { "name": "Tilvenning", "weeks": [1, 2, 3, 4] },
+    { "name": "Lett terskelutvikling", "weeks": [5, 6, 7, 8, 9] },
+    { "name": "Stabilisering", "weeks": [9, 10, 11, 12] }
+  ],
+  "weeks": [
+    {
+      "week": 1,
+      "phase": "Tilvenning",
+      "title": "Start forsiktig nok til at det føles som nesten ingenting",
+      "info": "Total løpetid denne uken: 7 min fordelt på to økter. Mandagens 30 sekunder skal føles som ingenting. Fredag introduserer «litt raskere» – din første smakebit på terskel.",
+      "coachNote": "Mandagens 30 sekunder skal føles som ingenting. Fredagen introduserer «litt raskere» – din første smakebit på terskel. Du går fra «kan prate hele tiden» til «må konsentrere meg litt». Laktatet løftes fra hvile og begynner å stige uten å akkumulere merkbart, bare akkurat nok til at kroppen registrerer at noe skjer, men langt under grensen hvor ting begynner å hope seg opp. Etter den første uka skal du knapt føle at du har trent. Det er hele poenget.",
+      "sessions": [
+        {
+          "id": "u1-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "rask_gange", "durationSec": 300 },
+            { "kind": "intervals", "repeats": 8, "work": { "intensity": "lett_jogg", "durationSec": 30 }, "rest": { "intensity": "gange", "durationSec": 90 } },
+            { "kind": "cooldown", "intensity": "gange", "durationSec": 300, "note": "rolig" }
+          ]
+        },
+        {
+          "id": "u1-2",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "rask_gange", "durationSec": 300 },
+            { "kind": "intervals", "repeats": 6, "work": { "intensity": "litt_raskere", "durationSec": 30 }, "rest": { "intensity": "gange", "durationSec": 90 } },
+            { "kind": "cooldown", "intensity": "gange", "durationSec": 300, "note": "rolig" }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 2,
+      "phase": "Tilvenning",
+      "title": "Litt mer mengde, kortere pauser",
+      "info": "Kroppen har nå opplevd løping to ganger i små, korte bolker. Fredagens 10 x 20 sek er første forsmak på terskelfart.",
+      "coachNote": "Fredagens 10 x 20 sekunder virker kanskje meningsløst kort. Men 20 sekunder er akkurat nok til at puls og pust begynner å reagere, men for kort til at laktat rekker å akkumulere. Du skal på denne økten begynne å tippe innom terskelfart allerede. Samtidig er du fortsatt sårbar muskulært, så intervallene må ikke være for lange. Tenk på det som en forsmak på mikrointervaller som 45/15.",
+      "sessions": [
+        {
+          "id": "u2-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "rask_gange", "durationSec": 300 },
+            { "kind": "intervals", "repeats": 8, "work": { "intensity": "jogg", "durationSec": 30 }, "rest": { "intensity": "gange", "durationSec": 60 } },
+            { "kind": "cooldown", "intensity": "rask_gange", "durationSec": 300 }
+          ]
+        },
+        {
+          "id": "u2-2",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "rask_gange", "durationSec": 300 },
+            { "kind": "intervals", "repeats": 10, "work": { "intensity": "terskel", "durationSec": 20 }, "rest": { "intensity": "gange", "durationSec": 40 } },
+            { "kind": "cooldown", "intensity": "rask_gange", "durationSec": 300 }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 3,
+      "phase": "Tilvenning",
+      "title": "Første ordentlige intervaller",
+      "info": "Nå begynner det å ligne på løping. Ett minutt av gangen. Fredag tester vi terskel i hele minutter for første gang.",
+      "coachNote": "Fredagen tester vi terskel i hele minutter for første gang. To minutters pause virker kanskje lenge, men dette er første gang du holder denne intensiteten så lenge. Det er bedre å fullføre alle seks med god kvalitet enn å måtte gi seg på nummer fire.",
+      "sessions": [
+        {
+          "id": "u3-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 300 },
+            { "kind": "intervals", "repeats": 6, "work": { "intensity": "jogg", "durationSec": 60 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 60 } },
+            { "kind": "cooldown", "intensity": "rask_gange", "durationSec": 300 }
+          ]
+        },
+        {
+          "id": "u3-2",
+          "plannedDay": "Onsdag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 300 },
+            { "kind": "intervals", "repeats": 4, "work": { "intensity": "jogg", "durationSec": 90 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 90 } },
+            { "kind": "cooldown", "intensity": "rask_gange", "durationSec": 300 }
+          ]
+        },
+        {
+          "id": "u3-3",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 300 },
+            { "kind": "intervals", "repeats": 6, "work": { "intensity": "terskel", "durationSec": 60 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 120 } },
+            { "kind": "cooldown", "intensity": "rask_gange", "durationSec": 300 }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 4,
+      "phase": "Tilvenning",
+      "title": "Siste innsjekk",
+      "info": "Siste uke i tilvenningsfasen. Fredag er første kontinuerlige løp.",
+      "coachNote": "Løp kontrollert hele veien. Målet er å venne kroppen til kontinuerlig arbeid, ikke sette rekorder. Onsdag får du ditt første møte med 45/15 som du allerede har lest om.",
+      "sessions": [
+        {
+          "id": "u4-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 300 },
+            { "kind": "intervals", "repeats": 3, "work": { "intensity": "rask_jogg", "durationSec": 180 }, "rest": { "intensity": "gange", "durationSec": 120 } },
+            { "kind": "cooldown", "intensity": "svart_lett_jogg", "durationSec": 300 }
+          ]
+        },
+        {
+          "id": "u4-2",
+          "plannedDay": "Onsdag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 300 },
+            { "kind": "intervals", "repeatsRange": [8, 10], "work": { "intensity": "terskel", "durationSec": 45 }, "rest": { "intensity": "gange", "durationSec": 15 } },
+            { "kind": "cooldown", "intensity": "svart_lett_jogg", "durationSec": 300 }
+          ]
+        },
+        {
+          "id": "u4-3",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 300 },
+            { "kind": "continuous", "intensity": "jogg", "durationRangeSec": [720, 900], "note": "12–15 min kontinuerlig" },
+            { "kind": "cooldown", "intensity": "svart_lett_jogg", "durationSec": 300 }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 5,
+      "phase": "Lett terskelutvikling",
+      "title": "Introduksjon til strukturert terskeltrening",
+      "info": "Fra nå av: mandager = hovedøkt, onsdager = rolig/oppbygging, fredager = støtteøkt. Denne strukturen holder resten av programmet.",
+      "phaseIntro": "Lett terskelutvikling (uke 5–9): Nå begynner det virkelige arbeidet. Kroppen har vent seg til å løpe, og senene tåler belastningen. Du har lært forskjellen mellom lett og litt hardere. Neste steg er å bygge terskelkapasiteten systematisk.",
+      "coachNote": "2 minutter terskel er valgt med omhu. Puls stabiliseres ofte innen 60–90 sekunder, og belastningen begynner å etablere seg, men et stabilt nivå krever lengre drag. Ved to minutter får du akkurat tid til å kjenne hvordan riktig terskel føles – ikke for mye tretthet, og ikke for lang belastning med tanke på skaderisiko. Vi avslutter ofte med 45/15 nå. Etter terskelintervaller, spesielt for nybegynnere, er musklene litt tunge og laktat sirkulerer fortsatt. 45/15 lærer kroppen å skifte gir under disse forholdene og å bryte mønsteret, noe som er uvurderlig for senere utvikling.",
+      "sessions": [
+        {
+          "id": "u5-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600 },
+            { "kind": "intervals", "repeats": 3, "work": { "intensity": "terskel", "durationSec": 120 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 120 } },
+            { "kind": "intervals", "repeats": 4, "work": { "intensity": "terskel", "durationSec": 45 }, "rest": { "intensity": "gange", "durationSec": 15 } },
+            { "kind": "cooldown", "intensity": "svart_lett_jogg", "durationSec": 300 }
+          ]
+        },
+        {
+          "id": "u5-2",
+          "plannedDay": "Onsdag",
+          "optional": false,
+          "segments": [
+            { "kind": "continuous", "intensity": "rolig_lop", "durationRangeSec": [1200, 1500], "note": "20–25 min kontinuerlig rolig" }
+          ]
+        },
+        {
+          "id": "u5-3",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600 },
+            { "kind": "intervals", "repeats": 8, "work": { "intensity": "terskel", "durationSec": 90 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 90 } },
+            { "kind": "intervals", "repeats": 6, "work": { "intensity": "terskel", "durationSec": 45 }, "rest": { "intensity": "gange", "durationSec": 15 } },
+            { "kind": "cooldown", "intensity": "svart_lett_jogg", "durationSec": 300 }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 6,
+      "phase": "Lett terskelutvikling",
+      "title": "Samme struktur, litt mer volum",
+      "info": "Progressiv økning: fredag har samme intervallengde som mandag, men kortere pauser.",
+      "coachNote": "Legg merke til fredagen. Samme intervallengde som mandag, men kortere pauser. Dette er progressiv økning av belastning i praksis. Kroppen må jobbe litt hardere for å opprettholde samme intensitet. Hvis uke 5 føltes overkommelig, vil uke 6 kjennes tøffere. Det er meningen. Kroppen tilpasser seg kun når den presses litt utenfor komfortsonen, men innenfor en fornuftig ramme.",
+      "sessions": [
+        {
+          "id": "u6-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "intervals", "repeats": 4, "work": { "intensity": "terskel", "durationSec": 120 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 120 } },
+            { "kind": "intervals", "repeatsRange": [4, 6], "work": { "intensity": "terskel", "durationSec": 45 }, "rest": { "intensity": "gange", "durationSec": 15 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 300, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u6-2",
+          "plannedDay": "Onsdag",
+          "optional": false,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationSec": 1500, "note": "25 min kontinuerlig" }
+          ]
+        },
+        {
+          "id": "u6-3",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "intervals", "repeats": 6, "work": { "intensity": "terskel", "durationSec": 120 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 90 } },
+            { "kind": "intervals", "repeats": 6, "work": { "intensity": "terskel", "durationSec": 45 }, "rest": { "intensity": "gange", "durationSec": 15 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 300, "note": "nedjogg" }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 7,
+      "phase": "Lett terskelutvikling",
+      "title": "Terskeløkning",
+      "info": "7 minutter terskel er et relativt stort hopp fra 2–3 min, men kroppen har brukt 6 uker på å forberede seg. Ny langtur på søndag.",
+      "coachNote": "7 minutter terskel er et relativt stort hopp fra 2–3 minutter. Men kroppen din har brukt 6 uker på å forberede seg.",
+      "sessions": [
+        {
+          "id": "u7-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "intervals", "repeats": 2, "work": { "intensity": "terskel", "durationSec": 420 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 180 } },
+            { "kind": "intervals", "repeatsRange": [4, 6], "work": { "intensity": "terskel", "durationSec": 60 }, "rest": { "intensity": "gange", "durationSec": 30 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 300, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u7-2",
+          "plannedDay": "Onsdag",
+          "optional": true,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationRangeSec": [1500, 1800], "note": "25–30 min kontinuerlig (valgfri)" }
+          ]
+        },
+        {
+          "id": "u7-3",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "intervals", "repeats": 5, "work": { "intensity": "terskel", "durationSec": 180 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 60 } },
+            { "kind": "intervals", "repeatsRange": [4, 6], "work": { "intensity": "terskel", "durationSec": 45 }, "rest": { "intensity": "gange", "durationSec": 15 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 300, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u7-4",
+          "plannedDay": "Søndag",
+          "optional": false,
+          "isNew": true,
+          "segments": [
+            { "kind": "continuous", "intensity": "rolig_lop", "durationRangeSec": [2100, 2400], "note": "35–40 min rolig (ny)" }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 8,
+      "phase": "Lett terskelutvikling",
+      "title": "Konsolidering",
+      "info": "8 minutter terskel krever mental styrke – her lærer du virkelig hva terskel er.",
+      "coachNote": "8 minutter terskel krever mental styrke, og her lærer du virkelig hva terskel er: det ubehagelige som ikke er helt ubehagelig, og det harde som ikke er helt hardt.",
+      "sessions": [
+        {
+          "id": "u8-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "intervals", "repeats": 2, "work": { "intensity": "terskel", "durationSec": 480 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 120 } },
+            { "kind": "intervals", "repeats": 6, "work": { "intensity": "terskel", "durationSec": 45 }, "rest": { "intensity": "gange", "durationSec": 15 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 300, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u8-2",
+          "plannedDay": "Onsdag",
+          "optional": true,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationSec": 1800, "note": "30 min kontinuerlig (valgfri)" }
+          ]
+        },
+        {
+          "id": "u8-3",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "intervals", "repeats": 4, "work": { "intensity": "terskel", "durationSec": 240 }, "rest": { "intensity": "lett_jogg_gange", "durationSec": 60 } },
+            { "kind": "intervals", "repeats": 8, "work": { "intensity": "terskel", "durationSec": 45 }, "rest": { "intensity": "gange", "durationSec": 15 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 300, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u8-4",
+          "plannedDay": "Søndag",
+          "optional": false,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationSec": 2400, "note": "40 min lett jogg" }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 9,
+      "phase": "Stabilisering",
+      "title": "Første sammenhengende terskel",
+      "info": "15 minutter terskel i samme økt – testen på om du har lært å holde riktig intensitet. Fra nå kan pausen være lett jogg, gange eller helt stillestående pause.",
+      "phaseIntro": "Stabilisering (uke 9–12): Siste fase er ikke lenger oppbygging, men sammensetning av alt du har lært. Vi går derfor fra intervaller til lengre sammenhengende arbeid, fra struktur til flyt.",
+      "coachNote": "15 minutter terskel i samme økt. Dette er testen på om du virkelig har lært å holde riktig intensitet. Start 5–10 sekunder per kilometer under det du tror er riktig. Jeg anbefaler at du aktivt bruker snakketesten, som du bør ha god erfaring med nå.",
+      "sessions": [
+        {
+          "id": "u9-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "continuous", "intensity": "terskel", "durationSec": 900, "note": "15 min sammenhengende terskel" },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 600, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u9-2",
+          "plannedDay": "Onsdag",
+          "optional": true,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationSec": 1800, "note": "30 min lett jogg (valgfri)" }
+          ]
+        },
+        {
+          "id": "u9-3",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "intervals", "repeats": 3, "work": { "intensity": "terskel", "durationSec": 360 }, "rest": { "intensity": "pause", "durationSec": 120 } },
+            { "kind": "intervals", "repeatsRange": [5, 10], "work": { "intensity": "terskel", "durationSec": 45 }, "rest": { "intensity": "gange", "durationSec": 15 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 300, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u9-4",
+          "plannedDay": "Søndag",
+          "optional": false,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationSec": 2700, "note": "45 min lett jogg" }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 10,
+      "phase": "Stabilisering",
+      "title": "Repetisjon og stabilisering",
+      "info": "Her stabiliseres tidligere økter, og en tydelig struktur begynner å sette seg.",
+      "coachNote": "Her stabiliseres tidligere økter, og en tydelig struktur begynner å sette seg.",
+      "sessions": [
+        {
+          "id": "u10-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "continuous", "intensity": "terskel", "durationSec": 900, "note": "15 min terskel" },
+            { "kind": "intervals", "repeats": 10, "work": { "intensity": "terskel", "durationSec": 30 }, "rest": { "intensity": "gange", "durationSec": 30 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 600, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u10-2",
+          "plannedDay": "Onsdag",
+          "optional": true,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationRangeSec": [1800, 2100], "note": "30–35 min lett jogg (valgfri)" }
+          ]
+        },
+        {
+          "id": "u10-3",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "intervals", "repeats": 4, "work": { "intensity": "terskel", "durationSec": 300 }, "rest": { "intensity": "pause", "durationSec": 90 } },
+            { "kind": "intervals", "repeats": 10, "work": { "intensity": "terskel", "durationSec": 45 }, "rest": { "intensity": "gange", "durationSec": 15 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 300, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u10-4",
+          "plannedDay": "Søndag",
+          "optional": false,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationRangeSec": [2700, 3000], "note": "45–50 min lett jogg" }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 11,
+      "phase": "Stabilisering",
+      "title": "Videre økning",
+      "info": "20 minutter terskel. Du har gått fra 30 sekunder jogging i uke 1 til 20 minutter på terskel.",
+      "coachNote": "20 minutter terskel. Du har gått fra 30 sekunder jogging i uke 1 til 20 minutter på terskel, og det er en progresjon mange ikke ville klart uten skader.",
+      "sessions": [
+        {
+          "id": "u11-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "continuous", "intensity": "terskel", "durationSec": 1200, "note": "20 min sammenhengende terskel" },
+            { "kind": "intervals", "repeats": 10, "work": { "intensity": "terskel", "durationSec": 30 }, "rest": { "intensity": "gange", "durationSec": 30 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 600, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u11-2",
+          "plannedDay": "Onsdag",
+          "optional": true,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationSec": 2100, "note": "35 min lett jogg (valgfri)" }
+          ]
+        },
+        {
+          "id": "u11-3",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "intervals", "repeats": 4, "work": { "intensity": "terskel", "durationSec": 300 }, "rest": { "intensity": "pause", "durationSec": 90 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 300, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u11-4",
+          "plannedDay": "Søndag",
+          "optional": false,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationRangeSec": [3000, 3600], "note": "50–60 min lett jogg" }
+          ]
+        }
+      ]
+    },
+    {
+      "week": 12,
+      "phase": "Stabilisering",
+      "title": "Avslutning og klar for neste fase",
+      "info": "Siste uke er nedtrapping mot test. Mandag holder intensiteten oppe men reduserer volum. Onsdag er lett. Fredag er enten lett eller hvile. Helg: test.",
+      "coachNote": "Siste uke er det nedtrapping mot test. Mandagen holder intensiteten oppe, men reduserer volum. Onsdag er lett. Fredag er enten lett eller hvile. Etter 12 uker er du ikke lenger nybegynner – du har bygget en solid kondisjonsbase og lært kroppen å håndtere terskelintensitet.",
+      "viderePlan": "Videre plan – 3 veier etter 12 uker: (1) Hold deg løpende med 1–3 økter i uka – for mange en permanent løsning som fungerer år etter år. (2) Trygg overgang med 3–4 økter per uke – systematisk progresjon uten for store steg. (3) Økning mot 4–5 økter per uke – for deg som har tid, motivasjon og en kropp som responderer godt.",
+      "sessions": [
+        {
+          "id": "u12-1",
+          "plannedDay": "Mandag",
+          "optional": false,
+          "segments": [
+            { "kind": "warmup", "intensity": "svart_lett_jogg", "durationSec": 600, "note": "oppvarming" },
+            { "kind": "intervals", "repeats": 3, "work": { "intensity": "terskel", "durationSec": 420 }, "rest": { "intensity": "pause", "durationSec": 120 } },
+            { "kind": "cooldown", "intensity": "lett_jogg", "durationSec": 300, "note": "nedjogg" }
+          ]
+        },
+        {
+          "id": "u12-2",
+          "plannedDay": "Onsdag",
+          "optional": true,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationSec": 1800, "note": "30 min lett jogg (valgfri)" }
+          ]
+        },
+        {
+          "id": "u12-3",
+          "plannedDay": "Fredag",
+          "optional": false,
+          "segments": [
+            { "kind": "continuous", "intensity": "lett_jogg", "durationSec": 1200, "note": "20 min lett jogg eller hvile", "orRest": true }
+          ]
+        },
+        {
+          "id": "u12-4",
+          "plannedDay": "Lørdag/søndag",
+          "optional": false,
+          "segments": [
+            { "kind": "test", "intensity": "test", "note": "5 km test eller terskelfarttest" }
+          ]
+        }
+      ]
+    }
+  ]
+};
+
+// ─── INTENSITET ───────────────────────────────────────────────────────────────
+const INTENSITY = {
+  gange:            { label: "gange",             color: "#8e8e93", hard: false },
+  rask_gange:       { label: "rask gange",        color: "#8e8e93", hard: false },
+  svart_lett_jogg:  { label: "svært lett jogg",   color: "#34c759", hard: false },
+  lett_jogg:        { label: "lett jogg",         color: "#34c759", hard: false },
+  jogg:             { label: "jogg",              color: "#30b0c7", hard: false },
+  rask_jogg:        { label: "rask jogg",         color: "#ff9500", hard: true  },
+  litt_raskere:     { label: "litt raskere",      color: "#ff9500", hard: true  },
+  terskel:          { label: "terskel",           color: "#ff3b30", hard: true  },
+  rolig_lop:        { label: "rolig løp",         color: "#34c759", hard: false },
+  lett_jogg_gange:  { label: "lett jogg / gange", color: "#8e8e93", hard: false },
+  pause:            { label: "pause",             color: "#8e8e93", hard: false },
+  hvile:            { label: "hvile",             color: "#8e8e93", hard: false },
+  test:             { label: "test",              color: "#af52de", hard: true  },
+};
+const iLabel = k => (INTENSITY[k] || { label: k }).label;
+const iColor = k => (INTENSITY[k] || { color: "#8e8e93" }).color;
+
+// ─── HJELPERE ─────────────────────────────────────────────────────────────────
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function parseKey(key) {
+  const p = key.split("-");
+  return new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2]), 12, 0, 0);
+}
+const pad = n => String(n).padStart(2, "0");
+
+// Varighet → tekst (matcher bokas stil: "90 sek", "2 min", "7:30 min")
+function durText(sec) {
+  if (sec % 60 === 0 && sec >= 120) return `${sec/60} min`;
+  if (sec < 120) return `${sec} sek`;
+  return `${Math.floor(sec/60)}:${pad(sec%60)} min`;
+}
+function durRangeText(range) {
+  const a = durText(range[0]), b = durText(range[1]);
+  const ua = a.split(" ").pop(), ub = b.split(" ").pop();
+  if (ua === ub) return `${a.split(" ")[0]}–${b.split(" ")[0]} ${ub}`;
+  return `${a}–${b}`;
+}
+function repText(seg) { return seg.repeatsRange ? `${seg.repeatsRange[0]}–${seg.repeatsRange[1]}` : `${seg.repeats}`; }
+
+// Bygg bokas linje fra segmenter, f.eks. "5 min rask gange + 8 × (30 sek lett jogg / 90 sek gange) + 5 min rolig gange"
+function segmentSummary(session) {
+  return session.segments.map(seg => {
+    if (seg.kind === "intervals") {
+      const w = seg.work, r = seg.rest;
+      return `${repText(seg)} × (${durText(w.durationSec)} ${iLabel(w.intensity)} / ${durText(r.durationSec)} ${iLabel(r.intensity)})`;
+    }
+    if (seg.kind === "continuous") {
+      const d = seg.durationRangeSec ? durRangeText(seg.durationRangeSec) : durText(seg.durationSec);
+      return `${d} ${iLabel(seg.intensity)}${seg.orRest ? " eller hvile" : ""}`;
+    }
+    if (seg.kind === "test") return seg.note || "Test";
+    // warmup / cooldown
+    const d = seg.durationRangeSec ? durRangeText(seg.durationRangeSec) : durText(seg.durationSec);
+    const suffix = seg.kind === "warmup" ? "" : "";
+    return `${d} ${iLabel(seg.intensity)}`;
+  }).join(" + ");
+}
+
+// Estimert total tid (min) – bruker nedre grense for ranges
+function sessionMinutes(session) {
+  let s = 0;
+  session.segments.forEach(seg => {
+    if (seg.kind === "intervals") {
+      const n = seg.repeatsRange ? seg.repeatsRange[0] : seg.repeats;
+      s += n * (seg.work.durationSec + seg.rest.durationSec);
+    } else if (seg.kind === "continuous") {
+      s += seg.durationRangeSec ? seg.durationRangeSec[0] : seg.durationSec;
+    } else if (seg.durationRangeSec) { s += seg.durationRangeSec[0]; }
+    else if (seg.durationSec) { s += seg.durationSec; }
+  });
+  return Math.round(s/60);
+}
+
+// Fart-konvertering (kanonisk = km/t)
+function kmhToPace(kmh) {
+  if (!kmh || kmh <= 0) return "";
+  const tot = Math.round(3600/kmh);
+  return `${Math.floor(tot/60)}:${pad(tot%60)}`;
+}
+function paceToKmh(str) {
+  const m = String(str).trim().match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!m) return null;
+  const sec = parseInt(m[1])*60 + parseInt(m[2]);
+  if (sec <= 0) return null;
+  return Math.round((3600/sec)*100)/100;
+}
+function fmtSpeed(kmh, unit) {
+  if (kmh == null) return "–";
+  return unit === "pace" ? `${kmhToPace(kmh)} /km` : `${kmh} km/t`;
+}
+
+function allSessions() {
+  const out = [];
+  PROGRAM.weeks.forEach(w => w.sessions.forEach(s => out.push({ ...s, week: w.week })));
+  return out;
+}
+
+// ─── LYD ──────────────────────────────────────────────────────────────────────
+function playPling(times=1, freq=880) {
+  try {
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const play = (delayMs) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = "sine"; osc.frequency.value = freq;
+      const t = ctx.currentTime + delayMs/1000;
+      gain.gain.setValueAtTime(0,t);
+      gain.gain.linearRampToValueAtTime(0.4,t+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001,t+0.6);
+      osc.start(t); osc.stop(t+0.6);
+    };
+    for (let i=0;i<times;i++) play(i*250);
+  } catch {}
+}
+
+// ─── GUIDET ØKT: bygg steg-liste ──────────────────────────────────────────────
+// choices: { [segIdx]: { reps?, sec? } } – for ranges
+function buildSteps(session, choices) {
+  const steps = [];
+  session.segments.forEach((seg, si) => {
+    const ch = (choices && choices[si]) || {};
+    if (seg.kind === "intervals") {
+      const n = seg.repeatsRange ? (ch.reps ?? seg.repeatsRange[0]) : seg.repeats;
+      for (let r=0; r<n; r++) {
+        steps.push({ label: `Arbeid ${r+1}/${n}`, intensity: seg.work.intensity, sec: seg.work.durationSec });
+        steps.push({ label: `Pause ${r+1}/${n}`, intensity: seg.rest.intensity, sec: seg.rest.durationSec });
+      }
+    } else if (seg.kind === "continuous") {
+      const sec = seg.durationRangeSec ? (ch.sec ?? seg.durationRangeSec[0]) : seg.durationSec;
+      steps.push({ label: seg.note || iLabel(seg.intensity), intensity: seg.intensity, sec });
+    } else if (seg.kind === "warmup" || seg.kind === "cooldown") {
+      const sec = seg.durationRangeSec ? (ch.sec ?? seg.durationRangeSec[0]) : seg.durationSec;
+      steps.push({ label: seg.kind === "warmup" ? "Oppvarming" : "Nedjogg", intensity: seg.intensity, sec });
+    }
+    // test-segment hoppes over i guidet modus
+  });
+  return steps;
+}
+
+// ─── KOMPONENTER ──────────────────────────────────────────────────────────────
+
+function SegmentList({ session }) {
+  return html`
+    <div style=${{display:"flex",flexDirection:"column",gap:8}}>
+      ${session.segments.map((seg,i) => {
+        if (seg.kind === "intervals") {
+          return html`
+            <div key=${i} style=${{display:"flex",gap:10,alignItems:"flex-start"}}>
+              <span style=${{width:6,alignSelf:"stretch",borderRadius:3,background:iColor(seg.work.intensity),flexShrink:0}}></span>
+              <div>
+                <p style=${{margin:0,fontSize:14,fontWeight:500}}>${repText(seg)} × intervaller</p>
+                <p style=${{margin:"2px 0 0",fontSize:13,color:"var(--color-text-secondary)"}}>
+                  ${durText(seg.work.durationSec)} ${iLabel(seg.work.intensity)} / ${durText(seg.rest.durationSec)} ${iLabel(seg.rest.intensity)}
+                </p>
+              </div>
+            </div>`;
+        }
+        const isTest = seg.kind === "test";
+        const dur = seg.durationRangeSec ? durRangeText(seg.durationRangeSec) : (seg.durationSec ? durText(seg.durationSec) : "");
+        const title = seg.kind==="warmup" ? "Oppvarming" : seg.kind==="cooldown" ? "Nedjogg" : isTest ? "Test" : "Kontinuerlig";
+        return html`
+          <div key=${i} style=${{display:"flex",gap:10,alignItems:"flex-start"}}>
+            <span style=${{width:6,alignSelf:"stretch",borderRadius:3,background:iColor(seg.intensity),flexShrink:0}}></span>
+            <div>
+              <p style=${{margin:0,fontSize:14,fontWeight:500}}>${title}${dur?` · ${dur}`:""}</p>
+              <p style=${{margin:"2px 0 0",fontSize:13,color:"var(--color-text-secondary)"}}>
+                ${isTest ? seg.note : `${iLabel(seg.intensity)}${seg.orRest?" eller hvile":""}${seg.note&&seg.note!==dur?"":""}`}
+              </p>
+            </div>
+          </div>`;
+      })}
+    </div>
+  `;
+}
+
+// Fart-input: viser km/t eller pace basert på unit
+function SpeedInput({ label, kmh, unit, onChange }) {
+  const [raw, setRaw] = useState(unit === "pace" ? kmhToPace(kmh) : (kmh ?? ""));
+  useEffect(() => { setRaw(unit === "pace" ? kmhToPace(kmh) : (kmh ?? "")); }, [unit]);
+  const commit = (v) => {
+    setRaw(v);
+    if (v === "" || v == null) { onChange(null); return; }
+    if (unit === "pace") { const k = paceToKmh(v); onChange(k); }
+    else { const k = parseFloat(String(v).replace(",", ".")); onChange(isNaN(k)?null:Math.round(k*100)/100); }
+  };
+  return html`
+    <div style=${{flex:1}}>
+      <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>${label}</label>
+      <input
+        type=${unit==="pace"?"text":"number"} step="0.1" inputmode=${unit==="pace"?"text":"decimal"}
+        value=${raw}
+        placeholder=${unit==="pace"?"mm:ss":"km/t"}
+        onInput=${e=>commit(e.target.value)}
+        style=${{width:"100%",boxSizing:"border-box"}}/>
+      <span style=${{fontSize:11,color:"var(--color-text-tertiary)"}}>${unit==="pace"?"min/km":"km/t"}</span>
+    </div>
+  `;
+}
+
+function GuidedSession({ session, choices, onExit, onFinish }) {
+  const steps = buildSteps(session, choices);
+  const [idx, setIdx] = useState(0);
+  const [rem, setRem] = useState(steps.length ? steps[0].sec : 0);
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(()=>()=>clearInterval(ref.current),[]);
+  useEffect(()=>{
+    if (running) {
+      ref.current = setInterval(()=>{
+        setRem(r=>{
+          if (r<=1) { advance(); return 0; }
+          if (r<=4) playPling(1, 660);
+          return r-1;
+        });
+      },1000);
+    } else clearInterval(ref.current);
+    return ()=>clearInterval(ref.current);
+  },[running, idx]);
+
+  function advance() {
+    clearInterval(ref.current);
+    if (idx < steps.length-1) {
+      playPling(2, 880);
+      const n = idx+1;
+      setIdx(n); setRem(steps[n].sec);
+    } else {
+      playPling(3, 990);
+      setRunning(false); setDone(true);
+    }
+  }
+
+  if (!steps.length) return html`<p style=${{padding:20}}>Ingen tidsstyrte segmenter i denne økten.</p>`;
+
+  if (done) return html`
+    <div style=${{textAlign:"center",padding:"48px 20px"}}>
+      <i class="ti ti-circle-check" style=${{fontSize:56,color:"#1D9E75",display:"block",marginBottom:16}}></i>
+      <h2 style=${{margin:"0 0 8px",fontSize:22,fontWeight:500}}>Økt fullført!</h2>
+      <p style=${{color:"var(--color-text-secondary)",marginBottom:28}}>Vil du logge farten og krysse av økten?</p>
+      <button onClick=${onFinish} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15,marginBottom:10}}>
+        <i class="ti ti-check"></i> Logg og kryss av
+      </button>
+      <button onClick=${onExit} style=${{width:"100%",padding:"12px",fontSize:14,color:"var(--color-text-secondary)"}}>Tilbake</button>
+    </div>`;
+
+  const step = steps[idx];
+  const next = steps[idx+1];
+  const m = Math.floor(rem/60), s = rem%60;
+  const pct = step.sec ? Math.round(((step.sec-rem)/step.sec)*100) : 0;
+  const circ = Math.round(2*Math.PI*70);
+  const col = iColor(step.intensity);
+
+  return html`
+    <div>
+      <div style=${{display:"flex",gap:2,marginBottom:18}}>
+        ${steps.map((_,i)=>html`<div key=${i} style=${{flex:1,height:3,borderRadius:2,background:i<idx?col:i===idx?col:"var(--color-border-tertiary)",opacity:i<=idx?1:0.5,transition:"all 0.3s"}}></div>`)}
+      </div>
+      <p style=${{textAlign:"center",margin:"0 0 4px",fontSize:12,color:"var(--color-text-tertiary)"}}>Steg ${idx+1} / ${steps.length}</p>
+      <div style=${{textAlign:"center"}}>
+        <div style=${{display:"inline-block",padding:"4px 14px",borderRadius:20,background:col,color:"#fff",fontSize:14,fontWeight:600,marginBottom:6}}>
+          ${iLabel(step.intensity)}
+        </div>
+        <p style=${{margin:"0 0 14px",fontSize:14,color:"var(--color-text-secondary)"}}>${step.label}</p>
+      </div>
+      <div style=${{position:"relative",width:160,height:160,margin:"0 auto 20px"}}>
+        <svg width="160" height="160" style=${{transform:"rotate(-90deg)"}}>
+          <circle cx="80" cy="80" r="70" fill="none" stroke="var(--color-border-tertiary)" stroke-width="7"/>
+          <circle cx="80" cy="80" r="70" fill="none" stroke=${col} stroke-width="7"
+            stroke-dasharray="${circ} ${circ}" stroke-dashoffset="${Math.round(circ*(1-pct/100))}"
+            stroke-linecap="round" style=${{transition:"stroke-dashoffset 1s linear"}}/>
+        </svg>
+        <div style=${{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <span style=${{fontSize:38,fontWeight:500,letterSpacing:"-0.02em",fontVariantNumeric:"tabular-nums"}}>${m>0?`${m}:${pad(s)}`:s}</span>
+        </div>
+      </div>
+      ${next && html`<p style=${{textAlign:"center",margin:"0 0 16px",fontSize:13,color:"var(--color-text-tertiary)"}}>Neste: ${iLabel(next.intensity)} · ${durText(next.sec)}</p>`}
+      <div style=${{display:"flex",gap:10,marginBottom:10}}>
+        <button onClick=${()=>setRunning(r=>!r)} class=${running?"":"btn-primary"} style=${{flex:2,padding:"14px",fontSize:16}}>
+          <i class=${`ti ${running?"ti-player-pause":"ti-player-play"}`}></i> ${running?"Pause":"Start"}
+        </button>
+        <button onClick=${advance} style=${{flex:1,padding:"14px",fontSize:14,color:"var(--color-text-secondary)"}}>
+          Hopp <i class="ti ti-player-skip-forward"></i>
+        </button>
+      </div>
+      <button onClick=${onExit} style=${{width:"100%",padding:"11px",fontSize:13,color:"var(--color-text-secondary)"}}>
+        <i class="ti ti-x"></i> Avslutt guidet økt
+      </button>
+    </div>
+  `;
+}
+
+// Konfig før guidet økt (velg antall/varighet for ranges)
+function GuidedConfig({ session, onStart, onCancel }) {
+  const initial = {};
+  session.segments.forEach((seg,i)=>{
+    if (seg.repeatsRange) initial[i] = { reps: seg.repeatsRange[0] };
+    else if (seg.durationRangeSec) initial[i] = { sec: seg.durationRangeSec[0] };
+  });
+  const [choices, setChoices] = useState(initial);
+  const hasRanges = Object.keys(initial).length > 0;
+  const setReps = (i,v,seg)=>setChoices(c=>({...c,[i]:{reps:Math.min(seg.repeatsRange[1],Math.max(seg.repeatsRange[0],v))}}));
+  const setSec  = (i,v,seg)=>setChoices(c=>({...c,[i]:{sec:Math.min(seg.durationRangeSec[1],Math.max(seg.durationRangeSec[0],v))}}));
+
+  return html`
+    <div>
+      <h2 style=${{margin:"0 0 4px",fontSize:19,fontWeight:500}}>Guidet økt</h2>
+      <p style=${{margin:"0 0 18px",fontSize:14,color:"var(--color-text-secondary)"}}>Timeren teller deg gjennom hvert segment med lydsignal ved bytte. Perfekt på mølla.</p>
+      ${hasRanges && html`
+        <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px 18px",marginBottom:16}}>
+          <p style=${{margin:"0 0 12px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Velg for denne økten</p>
+          ${session.segments.map((seg,i)=>{
+            if (seg.repeatsRange) return html`
+              <div key=${i} style=${{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0"}}>
+                <span style=${{fontSize:14}}>${durText(seg.work.durationSec)} ${iLabel(seg.work.intensity)}-intervaller</span>
+                <div style=${{display:"flex",alignItems:"center",gap:12}}>
+                  <button onClick=${()=>setReps(i,(choices[i].reps)-1,seg)} style=${{width:32,height:32,padding:0,fontSize:18}}>−</button>
+                  <span style=${{minWidth:24,textAlign:"center",fontSize:16,fontWeight:500}}>${choices[i].reps}</span>
+                  <button onClick=${()=>setReps(i,(choices[i].reps)+1,seg)} style=${{width:32,height:32,padding:0,fontSize:18}}>+</button>
+                </div>
+              </div>`;
+            if (seg.durationRangeSec) return html`
+              <div key=${i} style=${{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0"}}>
+                <span style=${{fontSize:14}}>${iLabel(seg.intensity)}</span>
+                <div style=${{display:"flex",alignItems:"center",gap:12}}>
+                  <button onClick=${()=>setSec(i,(choices[i].sec)-60,seg)} style=${{width:32,height:32,padding:0,fontSize:18}}>−</button>
+                  <span style=${{minWidth:52,textAlign:"center",fontSize:15,fontWeight:500}}>${durText(choices[i].sec)}</span>
+                  <button onClick=${()=>setSec(i,(choices[i].sec)+60,seg)} style=${{width:32,height:32,padding:0,fontSize:18}}>+</button>
+                </div>
+              </div>`;
+            return null;
+          })}
+        </div>`}
+      <button onClick=${()=>onStart(choices)} class="btn-primary" style=${{width:"100%",padding:"15px",fontSize:16,marginBottom:10}}>
+        <i class="ti ti-player-play"></i> Start
+      </button>
+      <button onClick=${onCancel} style=${{width:"100%",padding:"12px",fontSize:14,color:"var(--color-text-secondary)"}}>Avbryt</button>
+    </div>
+  `;
+}
+
+function SessionView({ session, week, log, unit, onBack, onSave, onDelete }) {
+  const rec = log[session.id] || {};
+  const [mode, setMode] = useState("detail"); // detail | config | guided
+  const [choices, setChoices] = useState(null);
+  const [doneDate, setDoneDate] = useState(rec.done_date || todayKey());
+  const [easy, setEasy] = useState(rec.easy_kmh ?? null);
+  const [thr, setThr] = useState(rec.threshold_kmh ?? null);
+  const [note, setNote] = useState(rec.note || "");
+  const done = !!rec.done;
+
+  const save = (markDone) => {
+    onSave({
+      session_id: session.id,
+      week: session.week,
+      done: markDone,
+      done_date: markDone ? doneDate : null,
+      easy_kmh: easy, threshold_kmh: thr, note: note || null,
+    });
+  };
+
+  if (mode === "config") return html`<div style=${{padding:"4px 2px"}}><${GuidedConfig} session=${session}
+    onStart=${(c)=>{setChoices(c);setMode("guided");}} onCancel=${()=>setMode("detail")}/></div>`;
+
+  if (mode === "guided") return html`<${GuidedSession} session=${session} choices=${choices}
+    onExit=${()=>setMode("detail")} onFinish=${()=>{save(true);setMode("detail");}}/>`;
+
+  return html`
+    <div>
+      <button onClick=${onBack} style=${{background:"none",border:"none",color:"var(--color-text-secondary)",fontSize:14,padding:"0 0 14px",cursor:"pointer"}}>
+        <i class="ti ti-arrow-left"></i> Uke ${session.week}
+      </button>
+
+      <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <h1 style=${{margin:0,fontSize:22,fontWeight:600}}>${session.plannedDay}</h1>
+        ${done && html`<span style=${{fontSize:13,color:"var(--color-text-success)",fontWeight:500}}><i class="ti ti-circle-check"></i> Gjort ${rec.done_date||""}</span>`}
+      </div>
+      ${session.optional && html`<span style=${{display:"inline-block",fontSize:12,background:"var(--color-background-info)",color:"var(--color-text-info)",padding:"2px 10px",borderRadius:6,marginBottom:8}}>Valgfri</span>`}
+      <p style=${{margin:"0 0 16px",fontSize:14,color:"var(--color-text-secondary)"}}>${segmentSummary(session)} · ca. ${sessionMinutes(session)} min</p>
+
+      <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:14}}>
+        <${SegmentList} session=${session}/>
+      </div>
+
+      <button onClick=${()=>setMode("config")} class="btn-blue" style=${{width:"100%",padding:"14px",fontSize:15,marginBottom:16}}>
+        <i class="ti ti-player-play"></i> Start guidet økt
+      </button>
+
+      <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:14}}>
+        <p style=${{margin:"0 0 14px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Logg økten</p>
+        <div style=${{display:"flex",gap:12,marginBottom:14}}>
+          <${SpeedInput} label="Rolig fart" kmh=${easy} unit=${unit} onChange=${setEasy}/>
+          <${SpeedInput} label="Terskelfart" kmh=${thr} unit=${unit} onChange=${setThr}/>
+        </div>
+        <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Dato</label>
+        <input type="date" value=${doneDate} onChange=${e=>setDoneDate(e.target.value)} style=${{width:"100%",marginBottom:14,boxSizing:"border-box"}}/>
+        <textarea value=${note} onInput=${e=>setNote(e.target.value)} placeholder="Notat (hvordan føltes det?)" rows="2"
+          style=${{width:"100%",resize:"none",fontSize:14,border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-md)",padding:"9px 12px",background:"var(--color-background-secondary)",boxSizing:"border-box",lineHeight:1.5}}></textarea>
+        <div style=${{display:"flex",gap:10,marginTop:14}}>
+          ${!done
+            ? html`<button onClick=${()=>save(true)} class="btn-primary" style=${{flex:1,padding:"13px",fontSize:15}}><i class="ti ti-check"></i> Kryss av som gjort</button>`
+            : html`
+              <button onClick=${()=>save(true)} class="btn-primary" style=${{flex:1,padding:"13px",fontSize:15}}><i class="ti ti-device-floppy"></i> Lagre endringer</button>
+              <button onClick=${()=>onDelete(session.id)} style=${{padding:"13px 16px",fontSize:14,color:"var(--color-text-secondary)"}}><i class="ti ti-arrow-back-up"></i></button>
+            `}
+        </div>
+      </div>
+
+      ${week.coachNote && html`
+        <div style=${{background:"var(--color-background-info)",borderRadius:"var(--border-radius-lg)",padding:"16px 18px",marginBottom:14}}>
+          <p style=${{margin:"0 0 6px",fontSize:12,fontWeight:600,color:"var(--color-text-info)"}}><i class="ti ti-bulb"></i> Fra boka</p>
+          <p style=${{margin:0,fontSize:14,lineHeight:1.6,color:"var(--color-text-primary)"}}>${week.coachNote}</p>
+        </div>`}
+    </div>
+  `;
+}
+
+function WeekView({ week, log, onBack, onOpen }) {
+  const doneCount = week.sessions.filter(s => log[s.id] && log[s.id].done).length;
+  return html`
+    <div>
+      <button onClick=${onBack} style=${{background:"none",border:"none",color:"var(--color-text-secondary)",fontSize:14,padding:"0 0 14px",cursor:"pointer"}}>
+        <i class="ti ti-arrow-left"></i> Alle uker
+      </button>
+      <p style=${{margin:"0 0 2px",fontSize:12,color:"var(--color-text-info)",fontWeight:500,textTransform:"uppercase",letterSpacing:"0.08em"}}>${week.phase} · Uke ${week.week}</p>
+      <h1 style=${{margin:"0 0 8px",fontSize:22,fontWeight:600,lineHeight:1.3}}>${week.title}</h1>
+      ${week.info && html`<p style=${{margin:"0 0 8px",fontSize:14,lineHeight:1.6,color:"var(--color-text-secondary)"}}>${week.info}</p>`}
+      <p style=${{margin:"0 0 18px",fontSize:13,color:"var(--color-text-tertiary)"}}>${doneCount} / ${week.sessions.length} økter gjort</p>
+
+      <div style=${{display:"flex",flexDirection:"column",gap:10}}>
+        ${week.sessions.map(s => {
+          const r = log[s.id] || {};
+          const isDone = !!r.done;
+          return html`
+            <button key=${s.id} onClick=${()=>onOpen(s)} style=${{
+              textAlign:"left",background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",
+              borderRadius:"var(--border-radius-lg)",padding:"16px 18px",display:"flex",alignItems:"center",gap:14,cursor:"pointer"
+            }}>
+              <span style=${{width:26,height:26,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+                border:isDone?"none":"1.5px solid var(--color-border-secondary)",background:isDone?"var(--color-background-success)":"transparent"}}>
+                ${isDone && html`<i class="ti ti-check" style=${{fontSize:14,color:"var(--color-text-success)"}}></i>`}
+              </span>
+              <div style=${{flex:1,minWidth:0}}>
+                <div style=${{display:"flex",alignItems:"center",gap:8}}>
+                  <p style=${{margin:0,fontSize:15,fontWeight:500}}>${s.plannedDay}</p>
+                  ${s.optional && html`<span style=${{fontSize:11,color:"var(--color-text-info)"}}>valgfri</span>`}
+                </div>
+                <p style=${{margin:"3px 0 0",fontSize:13,color:"var(--color-text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${segmentSummary(s)}</p>
+              </div>
+              <i class="ti ti-chevron-right" style=${{fontSize:18,color:"var(--color-text-tertiary)",flexShrink:0}}></i>
+            </button>`;
+        })}
+      </div>
+    </div>
+  `;
+}
+
+function ProgramView({ log, onOpenWeek, onOpenSession }) {
+  // Neste økt = første ikke-gjorte, ikke-valgfrie økt
+  const next = allSessions().find(s => !s.optional && !(log[s.id] && log[s.id].done));
+  const totalDone = allSessions().filter(s => log[s.id] && log[s.id].done).length;
+
+  return html`
+    <div>
+      ${next && html`
+        <button onClick=${()=>onOpenSession(next)} style=${{
+          width:"100%",textAlign:"left",cursor:"pointer",border:"none",
+          background:"linear-gradient(135deg,#1D9E75,#178a64)",color:"#fff",
+          borderRadius:"var(--border-radius-lg)",padding:"18px 20px",marginBottom:18}}>
+          <p style=${{margin:"0 0 4px",fontSize:12,opacity:0.85,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:500}}>Neste økt</p>
+          <p style=${{margin:"0 0 4px",fontSize:17,fontWeight:600}}>Uke ${next.week} · ${next.plannedDay}</p>
+          <p style=${{margin:0,fontSize:13,opacity:0.9,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${segmentSummary(next)}</p>
+        </button>`}
+
+      <p style=${{margin:"0 0 12px",fontSize:12,color:"var(--color-text-secondary)"}}>${totalDone} økter fullført totalt</p>
+
+      <div style=${{display:"flex",flexDirection:"column",gap:10}}>
+        ${PROGRAM.weeks.map(w => {
+          const dc = w.sessions.filter(s => log[s.id] && log[s.id].done).length;
+          const complete = dc === w.sessions.length;
+          return html`
+            <button key=${w.week} onClick=${()=>onOpenWeek(w.week)} style=${{
+              textAlign:"left",background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",
+              borderRadius:"var(--border-radius-lg)",padding:"15px 18px",display:"flex",alignItems:"center",gap:14,cursor:"pointer"}}>
+              <div style=${{width:38,height:38,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+                background:complete?"var(--color-background-success)":"var(--color-background-secondary)",
+                color:complete?"var(--color-text-success)":"var(--color-text-secondary)",fontSize:15,fontWeight:600}}>
+                ${complete ? html`<i class="ti ti-check" style=${{fontSize:18}}></i>` : w.week}
+              </div>
+              <div style=${{flex:1,minWidth:0}}>
+                <p style=${{margin:0,fontSize:11,color:"var(--color-text-tertiary)",textTransform:"uppercase",letterSpacing:"0.06em"}}>${w.phase}</p>
+                <p style=${{margin:"1px 0 0",fontSize:15,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${w.title}</p>
+              </div>
+              <span style=${{fontSize:12,color:"var(--color-text-tertiary)",flexShrink:0}}>${dc}/${w.sessions.length}</span>
+            </button>`;
+        })}
+      </div>
+
+      <div style=${{marginTop:18,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
+        <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)"}}>${PROGRAM.generalNotes.oppsett}</p>
+        ${PROGRAM.generalNotes.regler.map((r,i)=>html`
+          <div key=${i} style=${{marginTop:10}}>
+            <p style=${{margin:"0 0 2px",fontSize:13,fontWeight:600,color:"var(--color-text-info)"}}>${r.tittel}</p>
+            <p style=${{margin:0,fontSize:13,lineHeight:1.55,color:"var(--color-text-secondary)"}}>${r.tekst}</p>
+          </div>`)}
+      </div>
+    </div>
+  `;
+}
+
+function StatsView({ log, unit }) {
+  const sessions = allSessions();
+  const doneAll = sessions.filter(s => log[s.id] && log[s.id].done);
+  const withThr = doneAll.map(s => ({ s, r: log[s.id] }))
+    .filter(x => x.r.threshold_kmh != null)
+    .sort((a,b)=>parseKey(a.r.done_date||todayKey())-parseKey(b.r.done_date||todayKey()));
+
+  const totalMin = doneAll.reduce((sum,s)=>sum+sessionMinutes(s),0);
+
+  // fase-progresjon
+  const phases = [...new Set(PROGRAM.weeks.map(w=>w.phase))];
+  const phaseStats = phases.map(p=>{
+    const wk = PROGRAM.weeks.filter(w=>w.phase===p);
+    const total = wk.reduce((a,w)=>a+w.sessions.length,0);
+    const done = wk.reduce((a,w)=>a+w.sessions.filter(s=>log[s.id]&&log[s.id].done).length,0);
+    return { p, total, done };
+  });
+
+  return html`
+    <div>
+      <div style=${{display:"flex",gap:10,marginBottom:16}}>
+        <div style=${{flex:1,background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px",textAlign:"center"}}>
+          <p style=${{margin:0,fontSize:28,fontWeight:600}}>${doneAll.length}</p>
+          <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>økter gjort</p>
+        </div>
+        <div style=${{flex:1,background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px",textAlign:"center"}}>
+          <p style=${{margin:0,fontSize:28,fontWeight:600}}>${totalMin}</p>
+          <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>minutter løpt</p>
+        </div>
+      </div>
+
+      <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:16}}>
+        <p style=${{margin:"0 0 4px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Terskelfart over tid</p>
+        <p style=${{margin:"0 0 14px",fontSize:13,color:"var(--color-text-tertiary)"}}>${unit==="pace"?"min/km (lavere = raskere)":"km/t (høyere = raskere)"}</p>
+        ${withThr.length < 2
+          ? html`<p style=${{color:"var(--color-text-secondary)",fontSize:14,paddingBottom:6}}>Logg terskelfart på minst to økter for å se utviklingen.</p>`
+          : html`<${LineChart} points=${withThr.map(x=>({date:x.r.done_date,kmh:x.r.threshold_kmh}))} unit=${unit}/>`}
+      </div>
+
+      <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px"}}>
+        <p style=${{margin:"0 0 14px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Fremgang per fase</p>
+        ${phaseStats.map(ps=>html`
+          <div key=${ps.p} style=${{marginBottom:12}}>
+            <div style=${{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+              <span style=${{fontSize:13}}>${ps.p}</span>
+              <span style=${{fontSize:13,color:"var(--color-text-secondary)"}}>${ps.done}/${ps.total}</span>
+            </div>
+            <div style=${{height:8,borderRadius:4,background:"var(--color-background-secondary)",overflow:"hidden"}}>
+              <div style=${{height:"100%",width:`${Math.round((ps.done/ps.total)*100)}%`,background:"#1D9E75",borderRadius:4,transition:"width 0.5s"}}></div>
+            </div>
+          </div>`)}
+      </div>
+    </div>
+  `;
+}
+
+function LineChart({ points, unit }) {
+  const W = 300, H = 130, pad = 24;
+  const vals = points.map(p => unit==="pace" ? 3600/p.kmh : p.kmh); // pace i sek/km
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = (max-min) || 1;
+  const x = i => pad + (i/(points.length-1))*(W-2*pad);
+  const y = v => {
+    // for pace: lavere = bedre → vis lav verdi høyt oppe
+    const norm = unit==="pace" ? (v-min)/span : (max-v)/span;
+    return pad + norm*(H-2*pad);
+  };
+  const path = vals.map((v,i)=>`${i===0?"M":"L"} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+  const fmt = (kmh) => unit==="pace" ? kmhToPace(kmh) : kmh;
+  return html`
+    <svg viewBox="0 0 ${W} ${H}" style=${{width:"100%",height:"auto",display:"block"}}>
+      <path d=${path} fill="none" stroke="#1D9E75" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${vals.map((v,i)=>html`<circle key=${i} cx=${x(i)} cy=${y(v)} r="3.5" fill="#1D9E75"/>`)}
+      <text x=${pad} y="12" font-size="10" fill="var(--color-text-tertiary)">${fmt(points[0].kmh)}</text>
+      <text x=${W-pad} y=${H-6} font-size="10" fill="var(--color-text-tertiary)" text-anchor="end">${fmt(points[points.length-1].kmh)}</text>
+    </svg>
+  `;
+}
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState("program");    // program | stats
+  const [view, setView] = useState({ name: "list" }); // list | week | session
+  const [log, setLog] = useState({});
+  const [ready, setReady] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [unit, setUnit] = useState(() => localStorage.getItem("speedUnit") || "kmh");
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("lp_darkMode") || "system");
+
+  useEffect(() => {
+    const body = document.body;
+    body.classList.remove("force-dark","force-light");
+    if (darkMode === "dark") body.classList.add("force-dark");
+    else if (darkMode === "light") body.classList.add("force-light");
+    localStorage.setItem("lp_darkMode", darkMode);
+  }, [darkMode]);
+  const toggleDark = () => setDarkMode(m => m === "dark" ? "light" : m === "light" ? "system" : "dark");
+  const toggleUnit = () => setUnit(u => { const n = u==="kmh"?"pace":"kmh"; localStorage.setItem("speedUnit", n); return n; });
+
+  useEffect(()=>{ (async()=>{ setLog(await loadLog()); setReady(true); })(); },[]);
+
+  const saveRec = async (row) => {
+    setLog(l => ({ ...l, [row.session_id]: { ...l[row.session_id], ...row } }));
+    setSyncing(true); await saveSession(row); setSyncing(false);
+  };
+  const deleteRec = async (id) => {
+    setLog(l => { const n = { ...l }; delete n[id]; return n; });
+    setSyncing(true); await removeSession(id); setSyncing(false);
+    setView({ name: "list" });
+  };
+
+  const openWeek = (wk) => setView({ name: "week", week: wk });
+  const openSession = (s) => setView({ name: "session", week: s.week, sessionId: s.id });
+
+  const weekObj = (wk) => PROGRAM.weeks.find(w => w.week === wk);
+  const sessionObj = (wk, id) => { const w = weekObj(wk); const s = w.sessions.find(x=>x.id===id); return s ? { ...s, week: wk } : null; };
+
+  let body;
+  if (!ready) body = html`<p style=${{color:"var(--color-text-secondary)",textAlign:"center",paddingTop:40}}>Laster...</p>`;
+  else if (tab === "stats") body = html`<${StatsView} log=${log} unit=${unit}/>`;
+  else if (view.name === "week") body = html`<${WeekView} key=${"w"+view.week} week=${weekObj(view.week)} log=${log} onBack=${()=>setView({name:"list"})} onOpen=${openSession}/>`;
+  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId)} week=${weekObj(view.week)} log=${log} unit=${unit} onBack=${()=>setView({name:"week",week:view.week})} onSave=${saveRec} onDelete=${deleteRec}/>`;
+  else body = html`<${ProgramView} log=${log} onOpenWeek=${openWeek} onOpenSession=${openSession}/>`;
+
+  const title = tab==="stats" ? "Statistikk" : "Løpeprogram";
+
+  return html`
+    <div style=${{fontFamily:"var(--font-sans)",background:"var(--color-background-secondary)",display:"flex",flexDirection:"column",minHeight:"100vh"}}>
+      <div style=${{background:"var(--color-background-primary)",borderBottom:"0.5px solid var(--color-border-tertiary)",padding:"14px 18px 12px",flexShrink:0,position:"sticky",top:0,zIndex:10}}>
+        <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <p style=${{margin:0,fontSize:18,fontWeight:600}}>${title}</p>
+          <div style=${{display:"flex",alignItems:"center",gap:6}}>
+            ${syncing && html`<span style=${{fontSize:11,color:"var(--color-text-tertiary)"}}>Lagrer...</span>`}
+            <button onClick=${toggleUnit} style=${{background:"var(--color-background-secondary)",border:"0.5px solid var(--color-border-tertiary)",padding:"5px 10px",fontSize:12,cursor:"pointer",color:"var(--color-text-secondary)",borderRadius:6}} title="Bytt enhet">
+              ${unit==="pace"?"min/km":"km/t"}
+            </button>
+            <button onClick=${toggleDark} style=${{background:"none",border:"none",padding:"4px 6px",fontSize:18,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1}} title="Bytt tema">
+              ${darkMode==="dark"?"☀️":darkMode==="light"?"🌓":"🌙"}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div style=${{flex:1,padding:"16px",overflowY:"auto",paddingBottom:80}}>${body}</div>
+      <nav style=${{background:"var(--color-background-primary)",borderTop:"0.5px solid var(--color-border-tertiary)",display:"flex",height:66,flexShrink:0,position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto"}}>
+        ${[{id:"program",icon:"ti-run",label:"Program"},{id:"stats",icon:"ti-chart-line",label:"Statistikk"}].map(t => html`
+          <button key=${t.id} onClick=${()=>{setTab(t.id);if(t.id==="program")setView({name:"list"});}} style=${{
+            flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,background:"none",border:"none",cursor:"pointer",padding:0,
+            color:tab===t.id?"#1D9E75":"var(--color-text-secondary)"}}>
+            <i class=${`ti ${t.icon}`} style=${{fontSize:22}}></i>
+            <span style=${{fontSize:11,fontWeight:tab===t.id?500:400}}>${t.label}</span>
+          </button>`)}
+      </nav>
+    </div>
+  `;
+}
+
+render(html`<${App}/>`, document.getElementById('root'));
+</script>
+</body>
+</html>
