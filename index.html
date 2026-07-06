@@ -6,7 +6,7 @@
   <title>Løpeprogram</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -44,7 +44,8 @@
     }
 
     html, body { height: 100%; }
-    body { font-family: var(--font-sans); background: var(--color-background-secondary); color: var(--color-text-primary); -webkit-font-smoothing: antialiased; }
+    body { font-family: var(--font-sans); background: var(--color-background-secondary); color: var(--color-text-primary); -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    input, textarea, select { -webkit-user-select: text; user-select: text; }
     #root { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
 
     button {
@@ -54,6 +55,8 @@
       color: var(--color-text-primary);
       border-radius: var(--border-radius-md);
       transition: opacity 0.15s;
+      touch-action: manipulation;
+      -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
     }
     button:active { opacity: 0.7; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -918,7 +921,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
 
   const acquireWake = async () => { try { if (navigator.wakeLock) wakeRef.current = await navigator.wakeLock.request("screen"); } catch {} };
   const releaseWake = () => { try { if (wakeRef.current) { wakeRef.current.release(); wakeRef.current = null; } } catch {} };
-  const announce = (i) => { if (!voiceOn || preAnn.current[i] || !steps[i]) return; say(stepSpoken(steps[i]), voiceURI); };
+  const announce = (i) => { if (!voiceOn || !steps[i]) return; say(stepSpoken(steps[i]), voiceURI); };
 
   const toggleRun = () => {
     const willRun = !running;
@@ -945,11 +948,10 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
         setRem(r=>{
           if (r<=1) { advance(); return 0; }
           const nr = r-1;
-          const cur = steps[idx], nxt = steps[idx+1];
-          if (voiceOn && nxt) {
-            if (cur.sec >= 10 && nr === 5) { say(`${stepSpoken(nxt)}, om`, voiceURI); preAnn.current[idx+1] = true; }
-            else if (cur.sec >= 5 && nr <= 3 && nr >= 1) { say(String(nr), voiceURI); }
-          } else if (!voiceOn && nr <= 3) { playPling(1, 660); }
+          const cur = steps[idx];
+          if (voiceOn) {
+            if (cur.sec >= 6 && nr <= 3 && nr >= 1) say(String(nr), voiceURI);
+          } else if (nr <= 3) { playPling(1, 660); }
           return nr;
         });
       },1000);
