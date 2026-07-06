@@ -918,7 +918,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
 
   const acquireWake = async () => { try { if (navigator.wakeLock) wakeRef.current = await navigator.wakeLock.request("screen"); } catch {} };
   const releaseWake = () => { try { if (wakeRef.current) { wakeRef.current.release(); wakeRef.current = null; } } catch {} };
-  const announce = (i) => { if (!voiceOn || preAnn.current[i] || !steps[i]) return; say((i===0?"Vi starter. ":"") + stepSpoken(steps[i]), voiceURI); };
+  const announce = (i) => { if (!voiceOn || preAnn.current[i] || !steps[i]) return; say(stepSpoken(steps[i]), voiceURI); };
 
   const toggleRun = () => {
     const willRun = !running;
@@ -947,9 +947,9 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
           const nr = r-1;
           const cur = steps[idx], nxt = steps[idx+1];
           if (voiceOn && nxt) {
-            if (cur.sec >= 12 && nr === 8) { say(`Neste. ${stepSpoken(nxt)}, om`, voiceURI); preAnn.current[idx+1] = true; }
-            else if (cur.sec >= 8 && nr <= 5 && nr >= 1) { say(String(nr), voiceURI); }
-          } else if (!voiceOn && nr <= 4) { playPling(1, 660); }
+            if (cur.sec >= 10 && nr === 5) { say(`${stepSpoken(nxt)}, om`, voiceURI); preAnn.current[idx+1] = true; }
+            else if (cur.sec >= 5 && nr <= 3 && nr >= 1) { say(String(nr), voiceURI); }
+          } else if (!voiceOn && nr <= 3) { playPling(1, 660); }
           return nr;
         });
       },1000);
@@ -1104,7 +1104,7 @@ function GuidedConfig({ session, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onS
                   <option value="">Standard (${vs[0].lang})</option>
                   ${vs.map(v=>html`<option key=${v.voiceURI} value=${v.voiceURI}>${v.name} (${v.lang})</option>`)}
                 </select>
-                <button onClick=${()=>say("Terskel, 2 minutter. Neste, 60 sekunder gange, om 3, 2, 1.", voiceURI)} style=${{width:"100%",marginTop:10,padding:"10px",fontSize:14}}>
+                <button onClick=${()=>say("2 minutter terskel. 60 sekunder gange, om 3, 2, 1.", voiceURI)} style=${{width:"100%",marginTop:10,padding:"10px",fontSize:14}}>
                   <i class="ti ti-player-play"></i> Test stemmen
                 </button>`
               : html`<p style=${{margin:0,fontSize:13,color:"var(--color-text-secondary)"}}>Fant ingen stemmer på enheten. På iPhone: last ned norske stemmer under Innstillinger → Tilgjengelighet → Talt innhold → Stemmer → Norsk.</p>`;
