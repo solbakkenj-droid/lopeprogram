@@ -679,6 +679,32 @@ const INTENSITY = {
 };
 const iLabel = k => (INTENSITY[k] || { label: k }).label;
 const iColor = k => (INTENSITY[k] || { color: "#8e8e93" }).color;
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+// Rangering av intensitet (lav = rolig, høy = hardt) – brukes til å velge fart-felt
+const IRANK = { hvile:0, pause:0, gange:1, rask_gange:2, lett_jogg_gange:2, svart_lett_jogg:3, rolig_lop:4, lett_jogg:4, jogg:5, litt_raskere:6, rask_jogg:6, terskel:7, test:8 };
+const irank = k => (IRANK[k] ?? 4);
+
+// Finn de to relevante fartene i en økt: rolig/restitusjon og arbeid/hardt
+function sessionPaces(session) {
+  const easyC = [], workC = [];
+  session.segments.forEach(seg => {
+    if (seg.kind === "intervals") {
+      workC.push(seg.work.intensity);
+      easyC.push(seg.rest.intensity);
+    } else if (seg.kind === "continuous") {
+      (irank(seg.intensity) >= 5 ? workC : easyC).push(seg.intensity);
+    } else if (seg.kind === "warmup" || seg.kind === "cooldown") {
+      easyC.push(seg.intensity);
+    }
+  });
+  let work = workC.length ? workC.reduce((a,b)=> irank(b) > irank(a) ? b : a) : null;
+  let easyPool = easyC.filter(i => i !== "pause" && i !== "hvile");
+  if (!easyPool.length) easyPool = easyC;
+  let easy = easyPool.length ? easyPool.reduce((a,b)=> irank(b) < irank(a) ? b : a) : null;
+  if (work && work === easy) work = null;
+  return { easy, work };
+}
 
 // ─── HJELPERE ─────────────────────────────────────────────────────────────────
 function todayKey() {
@@ -1178,10 +1204,18 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
 
       <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:14}}>
         <p style=${{margin:"0 0 14px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Logg økten</p>
-        <div style=${{display:"flex",gap:12,marginBottom:14}}>
-          <${SpeedInput} label="Rolig fart" kmh=${easy} unit=${unit} onChange=${setEasy}/>
-          <${SpeedInput} label="Terskelfart" kmh=${thr} unit=${unit} onChange=${setThr}/>
-        </div>
+        ${(() => {
+          const p = sessionPaces(session);
+          const easyLabel = p.easy ? cap(iLabel(p.easy)) : "Fart";
+          return p.work
+            ? html`<div style=${{display:"flex",gap:12,marginBottom:14}}>
+                <${SpeedInput} label=${easyLabel} kmh=${easy} unit=${unit} onChange=${setEasy}/>
+                <${SpeedInput} label=${cap(iLabel(p.work))} kmh=${thr} unit=${unit} onChange=${setThr}/>
+              </div>`
+            : html`<div style=${{marginBottom:14}}>
+                <${SpeedInput} label=${easyLabel} kmh=${easy} unit=${unit} onChange=${setEasy}/>
+              </div>`;
+        })()}
         <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Dato</label>
         <input type="date" value=${doneDate} onChange=${e=>setDoneDate(e.target.value)} style=${{width:"100%",marginBottom:14,boxSizing:"border-box"}}/>
         <textarea value=${note} onInput=${e=>setNote(e.target.value)} placeholder="Notat (hvordan føltes det?)" rows="2"
@@ -1330,10 +1364,10 @@ function StatsView({ log, unit }) {
       </div>
 
       <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:16}}>
-        <p style=${{margin:"0 0 4px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Terskelfart over tid</p>
+        <p style=${{margin:"0 0 4px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Arbeidsfart over tid</p>
         <p style=${{margin:"0 0 14px",fontSize:13,color:"var(--color-text-tertiary)"}}>${unit==="pace"?"min/km (lavere = raskere)":"km/t (høyere = raskere)"}</p>
         ${withThr.length < 2
-          ? html`<p style=${{color:"var(--color-text-secondary)",fontSize:14,paddingBottom:6}}>Logg terskelfart på minst to økter for å se utviklingen.</p>`
+          ? html`<p style=${{color:"var(--color-text-secondary)",fontSize:14,paddingBottom:6}}>Logg arbeidsfart på minst to økter for å se utviklingen.</p>`
           : html`<${LineChart} points=${withThr.map(x=>({date:x.r.done_date,kmh:x.r.threshold_kmh}))} unit=${unit}/>`}
       </div>
 
