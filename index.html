@@ -777,6 +777,45 @@ function playPling(times=1, freq=880) {
   } catch {}
 }
 
+// ─── TALE (TTS) + SKJERM ──────────────────────────────────────────────────────
+let VOICES = [];
+function loadVoices() {
+  try { VOICES = window.speechSynthesis ? window.speechSynthesis.getVoices() : []; } catch { VOICES = []; }
+  return VOICES;
+}
+if (window.speechSynthesis) {
+  loadVoices();
+  try { window.speechSynthesis.addEventListener("voiceschanged", loadVoices); } catch {}
+}
+function norskVoices() {
+  const all = loadVoices();
+  const no = all.filter(v => /^(nb|nn|no)([-_]|$)/i.test(v.lang));
+  return no.length ? no : all;
+}
+function setDuck(on) {
+  try { if (navigator.audioSession) navigator.audioSession.type = on ? "transient" : "ambient"; } catch {}
+}
+function say(text, voiceURI) {
+  if (!window.speechSynthesis || !text) return;
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    const list = VOICES.length ? VOICES : loadVoices();
+    const v = list.find(x => x.voiceURI === voiceURI);
+    if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = "nb-NO"; }
+    u.rate = 1.05;
+    window.speechSynthesis.speak(u);
+  } catch {}
+}
+function durSpoken(sec) {
+  if (sec < 120) return `${sec} sekunder`;
+  if (sec % 60 === 0) return `${sec/60} minutter`;
+  const mm = Math.floor(sec/60), ss = sec%60;
+  return `${mm} minutter og ${ss} sekunder`;
+}
+function stepSpoken(step) {
+  return `${durSpoken(step.sec)} ${iLabel(step.intensity).replace("/", "eller")}`;
+}
+
 // ─── GUIDET ØKT: bygg steg-liste ──────────────────────────────────────────────
 // choices: { [segIdx]: { reps?, sec? } } – for ranges
 function buildSteps(session, choices) {
@@ -861,27 +900,62 @@ function SpeedInput({ label, kmh, unit, onChange }) {
   `;
 }
 
-function GuidedSession({ session, choices, onExit, onFinish }) {
+function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }) {
   const steps = buildSteps(session, choices);
   const [idx, setIdx] = useState(0);
   const [rem, setRem] = useState(steps.length ? steps[0].sec : 0);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [unlockHint, setUnlockHint] = useState(false);
   const ref = useRef(null);
+  const wakeRef = useRef(null);
+  const unlockRef = useRef(null);
+  const startedRef = useRef(false);
+  const runningRef = useRef(false);
+  const preAnn = useRef({});
+  useEffect(()=>{ runningRef.current = running; },[running]);
 
-  useEffect(()=>()=>clearInterval(ref.current),[]);
+  const acquireWake = async () => { try { if (navigator.wakeLock) wakeRef.current = await navigator.wakeLock.request("screen"); } catch {} };
+  const releaseWake = () => { try { if (wakeRef.current) { wakeRef.current.release(); wakeRef.current = null; } } catch {} };
+  const announce = (i) => { if (!voiceOn || preAnn.current[i] || !steps[i]) return; say((i===0?"Vi starter. ":"") + stepSpoken(steps[i]), voiceURI); };
+
+  const toggleRun = () => {
+    const willRun = !running;
+    if (willRun) {
+      setDuck(true); acquireWake();
+      try { window.speechSynthesis && window.speechSynthesis.resume(); } catch {}
+      if (!startedRef.current) { startedRef.current = true; announce(idx); }
+    }
+    setRunning(willRun);
+  };
+
+  const startUnlock = () => { setUnlockHint(true); unlockRef.current = setTimeout(()=>{ setLocked(false); setUnlockHint(false); }, 1500); };
+  const cancelUnlock = () => { setUnlockHint(false); if (unlockRef.current) clearTimeout(unlockRef.current); };
+
+  useEffect(()=>{
+    const onVis = () => { if (document.visibilityState === "visible" && runningRef.current && !wakeRef.current) acquireWake(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(ref.current); releaseWake(); setDuck(false); };
+  },[]);
+
   useEffect(()=>{
     if (running) {
       ref.current = setInterval(()=>{
         setRem(r=>{
           if (r<=1) { advance(); return 0; }
-          if (r<=4) playPling(1, 660);
-          return r-1;
+          const nr = r-1;
+          const cur = steps[idx], nxt = steps[idx+1];
+          if (voiceOn && nxt) {
+            if (cur.sec >= 12 && nr === 8) { say(`Neste. ${stepSpoken(nxt)}, om`, voiceURI); preAnn.current[idx+1] = true; }
+            else if (cur.sec >= 8 && nr <= 5 && nr >= 1) { say(String(nr), voiceURI); }
+          } else if (!voiceOn && nr <= 4) { playPling(1, 660); }
+          return nr;
         });
       },1000);
     } else clearInterval(ref.current);
     return ()=>clearInterval(ref.current);
-  },[running, idx]);
+  },[running, idx, voiceOn, voiceURI]);
 
   function advance() {
     clearInterval(ref.current);
@@ -889,9 +963,12 @@ function GuidedSession({ session, choices, onExit, onFinish }) {
       playPling(2, 880);
       const n = idx+1;
       setIdx(n); setRem(steps[n].sec);
+      announce(n);
     } else {
       playPling(3, 990);
+      if (voiceOn) say("Økt fullført. Godt jobbet!", voiceURI);
       setRunning(false); setDone(true);
+      releaseWake(); setDuck(false);
     }
   }
 
@@ -940,22 +1017,35 @@ function GuidedSession({ session, choices, onExit, onFinish }) {
       </div>
       ${next && html`<p style=${{textAlign:"center",margin:"0 0 16px",fontSize:13,color:"var(--color-text-tertiary)"}}>Neste: ${iLabel(next.intensity)} · ${durText(next.sec)}</p>`}
       <div style=${{display:"flex",gap:10,marginBottom:10}}>
-        <button onClick=${()=>setRunning(r=>!r)} class=${running?"":"btn-primary"} style=${{flex:2,padding:"14px",fontSize:16}}>
+        <button onClick=${toggleRun} class=${running?"":"btn-primary"} style=${{flex:2,padding:"14px",fontSize:16}}>
           <i class=${`ti ${running?"ti-player-pause":"ti-player-play"}`}></i> ${running?"Pause":"Start"}
         </button>
         <button onClick=${advance} style=${{flex:1,padding:"14px",fontSize:14,color:"var(--color-text-secondary)"}}>
           Hopp <i class="ti ti-player-skip-forward"></i>
         </button>
       </div>
+      <button onClick=${()=>setLocked(true)} style=${{width:"100%",padding:"12px",fontSize:14,marginBottom:10}}>
+        <i class="ti ti-lock"></i> Lås skjerm (lommesikker)
+      </button>
       <button onClick=${onExit} style=${{width:"100%",padding:"11px",fontSize:13,color:"var(--color-text-secondary)"}}>
         <i class="ti ti-x"></i> Avslutt guidet økt
       </button>
+      ${locked && html`
+        <div style=${{position:"fixed",inset:0,zIndex:1000,background:"var(--color-background-secondary)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
+          <div style=${{display:"inline-block",padding:"6px 20px",borderRadius:22,background:col,color:"#fff",fontSize:17,fontWeight:600,marginBottom:16}}>${iLabel(step.intensity)}</div>
+          <div style=${{fontSize:72,fontWeight:500,fontVariantNumeric:"tabular-nums",lineHeight:1,marginBottom:8}}>${m>0?`${m}:${pad(s)}`:s}</div>
+          <p style=${{color:"var(--color-text-secondary)",marginBottom:44}}><i class="ti ti-lock"></i> Skjermen er låst</p>
+          <button onPointerDown=${startUnlock} onPointerUp=${cancelUnlock} onPointerLeave=${cancelUnlock} onPointerCancel=${cancelUnlock}
+            style=${{padding:"16px 30px",fontSize:15,borderRadius:30,border:"1px solid var(--color-border-secondary)"}}>
+            <i class="ti ti-lock-open"></i> ${unlockHint ? "Hold inne…" : "Hold for å låse opp"}
+          </button>
+        </div>`}
     </div>
   `;
 }
 
 // Konfig før guidet økt (velg antall/varighet for ranges)
-function GuidedConfig({ session, onStart, onCancel }) {
+function GuidedConfig({ session, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onStart, onCancel }) {
   const initial = {};
   session.segments.forEach((seg,i)=>{
     if (seg.repeatsRange) initial[i] = { reps: seg.repeatsRange[0] };
@@ -995,6 +1085,32 @@ function GuidedConfig({ session, onStart, onCancel }) {
             return null;
           })}
         </div>`}
+      <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px 18px",marginBottom:16}}>
+        <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <p style=${{margin:0,fontSize:15,fontWeight:500}}><i class="ti ti-volume"></i> Stemme</p>
+            <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>Sier øktene høyt, demper musikk</p>
+          </div>
+          <button onClick=${()=>setVoiceOn(!voiceOn)} style=${{width:52,height:30,borderRadius:15,padding:0,position:"relative",background:voiceOn?"#1D9E75":"var(--color-border-secondary)",border:"none"}}>
+            <span style=${{position:"absolute",top:3,left:voiceOn?25:3,width:24,height:24,borderRadius:"50%",background:"#fff",transition:"left 0.15s"}}></span>
+          </button>
+        </div>
+        ${voiceOn && html`
+          <div style=${{marginTop:14}}>
+            ${(() => { const vs = norskVoices(); return vs.length
+              ? html`
+                <select value=${voiceURI} onChange=${e=>setVoiceURI(e.target.value)}
+                  style=${{width:"100%",padding:"10px 12px",borderRadius:"var(--border-radius-md)",border:"0.5px solid var(--color-border-tertiary)",background:"var(--color-background-secondary)",color:"var(--color-text-primary)",fontSize:14}}>
+                  <option value="">Standard (${vs[0].lang})</option>
+                  ${vs.map(v=>html`<option key=${v.voiceURI} value=${v.voiceURI}>${v.name} (${v.lang})</option>`)}
+                </select>
+                <button onClick=${()=>say("Terskel, 2 minutter. Neste, 60 sekunder gange, om 3, 2, 1.", voiceURI)} style=${{width:"100%",marginTop:10,padding:"10px",fontSize:14}}>
+                  <i class="ti ti-player-play"></i> Test stemmen
+                </button>`
+              : html`<p style=${{margin:0,fontSize:13,color:"var(--color-text-secondary)"}}>Fant ingen stemmer på enheten. På iPhone: last ned norske stemmer under Innstillinger → Tilgjengelighet → Talt innhold → Stemmer → Norsk.</p>`;
+            })()}
+          </div>`}
+      </div>
       <button onClick=${()=>onStart(choices)} class="btn-primary" style=${{width:"100%",padding:"15px",fontSize:16,marginBottom:10}}>
         <i class="ti ti-player-play"></i> Start
       </button>
@@ -1003,7 +1119,7 @@ function GuidedConfig({ session, onStart, onCancel }) {
   `;
 }
 
-function SessionView({ session, week, log, unit, onBack, onSave, onDelete }) {
+function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onBack, onSave, onDelete }) {
   const rec = log[session.id] || {};
   const [mode, setMode] = useState("detail"); // detail | config | guided
   const [choices, setChoices] = useState(null);
@@ -1024,9 +1140,11 @@ function SessionView({ session, week, log, unit, onBack, onSave, onDelete }) {
   };
 
   if (mode === "config") return html`<div style=${{padding:"4px 2px"}}><${GuidedConfig} session=${session}
+    voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI}
     onStart=${(c)=>{setChoices(c);setMode("guided");}} onCancel=${()=>setMode("detail")}/></div>`;
 
   if (mode === "guided") return html`<${GuidedSession} session=${session} choices=${choices}
+    voiceOn=${voiceOn} voiceURI=${voiceURI}
     onExit=${()=>setMode("detail")} onFinish=${()=>{save(true);setMode("detail");}}/>`;
 
   return html`
@@ -1260,6 +1378,10 @@ function App() {
   const [syncing, setSyncing] = useState(false);
   const [unit, setUnit] = useState(() => localStorage.getItem("speedUnit") || "kmh");
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("lp_darkMode") || "system");
+  const [voiceOn, setVoiceOnState] = useState(() => localStorage.getItem("voiceOn") !== "0");
+  const [voiceURI, setVoiceURIState] = useState(() => localStorage.getItem("voiceURI") || "");
+  const setVoiceOn = (v) => { setVoiceOnState(v); localStorage.setItem("voiceOn", v ? "1" : "0"); };
+  const setVoiceURI = (v) => { setVoiceURIState(v); localStorage.setItem("voiceURI", v || ""); };
 
   useEffect(() => {
     const body = document.body;
@@ -1293,7 +1415,7 @@ function App() {
   if (!ready) body = html`<p style=${{color:"var(--color-text-secondary)",textAlign:"center",paddingTop:40}}>Laster...</p>`;
   else if (tab === "stats") body = html`<${StatsView} log=${log} unit=${unit}/>`;
   else if (view.name === "week") body = html`<${WeekView} key=${"w"+view.week} week=${weekObj(view.week)} log=${log} onBack=${()=>setView({name:"list"})} onOpen=${openSession}/>`;
-  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId)} week=${weekObj(view.week)} log=${log} unit=${unit} onBack=${()=>setView({name:"week",week:view.week})} onSave=${saveRec} onDelete=${deleteRec}/>`;
+  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId)} week=${weekObj(view.week)} log=${log} unit=${unit} voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI} onBack=${()=>setView({name:"week",week:view.week})} onSave=${saveRec} onDelete=${deleteRec}/>`;
   else body = html`<${ProgramView} log=${log} onOpenWeek=${openWeek} onOpenSession=${openSession}/>`;
 
   const title = tab==="stats" ? "Statistikk" : "Løpeprogram";
