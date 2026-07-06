@@ -1379,45 +1379,53 @@ function LineChart({ points, unit }) {
 
 // ─── INNLOGGING ───────────────────────────────────────────────────────────────
 function LoginScreen() {
+  const [mode, setMode] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const send = async () => {
+  const msg = (error) => {
+    const m = (error.message || "").toLowerCase();
+    if (m.includes("already registered") || m.includes("already been registered")) return "Denne e-posten har allerede en konto. Velg «Logg inn».";
+    if (m.includes("at least") || m.includes("password should")) return "Passordet må være minst 6 tegn.";
+    if (m.includes("invalid login") || m.includes("invalid credentials")) return "Feil e-post eller passord.";
+    return error.message;
+  };
+  const submit = async () => {
     const e = email.trim();
-    if (!e) return;
+    if (!e || !pw) return;
     setBusy(true); setErr("");
-    const { error } = await db.auth.signInWithOtp({ email: e, options: { emailRedirectTo: window.location.origin } });
+    const { error } = mode === "signup"
+      ? await db.auth.signUp({ email: e, password: pw })
+      : await db.auth.signInWithPassword({ email: e, password: pw });
     setBusy(false);
-    if (error) setErr(error.message); else setSent(true);
+    if (error) setErr(msg(error));
+    // Ved suksess oppdaterer onAuthStateChange appen -> innlogget
   };
   return html`
     <div style=${{minHeight:"100vh",display:"flex",flexDirection:"column",justifyContent:"center",padding:"24px",maxWidth:420,margin:"0 auto"}}>
       <div style=${{textAlign:"center",marginBottom:28}}>
         <div style=${{fontSize:44,marginBottom:8}}>🏃</div>
         <h1 style=${{margin:0,fontSize:24,fontWeight:600}}>Løpeprogram</h1>
-        <p style=${{margin:"6px 0 0",fontSize:14,color:"var(--color-text-secondary)"}}>Logg inn for din egen treningslogg</p>
+        <p style=${{margin:"6px 0 0",fontSize:14,color:"var(--color-text-secondary)"}}>${mode==="signup" ? "Opprett din egen treningslogg" : "Logg inn for din egen treningslogg"}</p>
       </div>
-      ${sent
-        ? html`
-          <div style=${{background:"var(--color-background-success)",borderRadius:"var(--border-radius-lg)",padding:"22px",textAlign:"center"}}>
-            <i class="ti ti-mail-check" style=${{fontSize:34,color:"var(--color-text-success)"}}></i>
-            <p style=${{margin:"10px 0 4px",fontWeight:500}}>Sjekk e-posten din</p>
-            <p style=${{margin:0,fontSize:14,color:"var(--color-text-secondary)"}}>Vi sendte en innloggingslenke til <strong>${email}</strong>. Åpne den på denne enheten.</p>
-            <button onClick=${()=>setSent(false)} style=${{marginTop:16,padding:"10px 16px",fontSize:14}}>Bruk en annen e-post</button>
-          </div>`
-        : html`
-          <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"20px"}}>
-            <label style=${{display:"block",fontSize:13,color:"var(--color-text-secondary)",marginBottom:6}}>E-post</label>
-            <input type="email" inputmode="email" autocomplete="email" value=${email} onInput=${e=>setEmail(e.target.value)} placeholder="deg@epost.no"
-              onKeyDown=${e=>{ if(e.key==="Enter") send(); }}
-              style=${{width:"100%",boxSizing:"border-box",marginBottom:12}}/>
-            ${err && html`<p style=${{margin:"0 0 10px",fontSize:13,color:"#ff3b30"}}>${err}</p>`}
-            <button onClick=${send} disabled=${busy||!email.trim()} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15}}>
-              ${busy ? "Sender…" : "Send innloggingslenke"}
-            </button>
-            <p style=${{margin:"12px 0 0",fontSize:12,color:"var(--color-text-tertiary)",textAlign:"center"}}>Ingen passord. Du får en lenke på e-post og forblir innlogget.</p>
-          </div>`}
+      <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"20px"}}>
+        <label style=${{display:"block",fontSize:13,color:"var(--color-text-secondary)",marginBottom:6}}>E-post</label>
+        <input type="email" inputmode="email" autocomplete="email" value=${email} onInput=${e=>setEmail(e.target.value)} placeholder="deg@epost.no"
+          style=${{width:"100%",boxSizing:"border-box",marginBottom:12}}/>
+        <label style=${{display:"block",fontSize:13,color:"var(--color-text-secondary)",marginBottom:6}}>Passord</label>
+        <input type="password" autocomplete=${mode==="signup"?"new-password":"current-password"} value=${pw} onInput=${e=>setPw(e.target.value)} placeholder=${mode==="signup"?"Minst 6 tegn":"Passord"}
+          onKeyDown=${e=>{ if(e.key==="Enter") submit(); }}
+          style=${{width:"100%",boxSizing:"border-box",marginBottom:12}}/>
+        ${err && html`<p style=${{margin:"0 0 10px",fontSize:13,color:"#ff3b30"}}>${err}</p>`}
+        <button onClick=${submit} disabled=${busy||!email.trim()||!pw} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15}}>
+          ${busy ? "Vent…" : (mode==="signup" ? "Opprett konto" : "Logg inn")}
+        </button>
+        <button onClick=${()=>{ setMode(mode==="signup"?"signin":"signup"); setErr(""); }} style=${{width:"100%",marginTop:12,padding:"8px",fontSize:13,background:"none",border:"none",color:"var(--color-text-info)"}}>
+          ${mode==="signup" ? "Har du konto? Logg inn" : "Ny her? Opprett konto"}
+        </button>
+      </div>
+      <p style=${{margin:"14px 4px 0",fontSize:12,color:"var(--color-text-tertiary)",textAlign:"center"}}>Du forblir innlogget. iPhone kan lagre passordet og fylle det inn med Face ID.</p>
     </div>`;
 }
 
