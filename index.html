@@ -1516,7 +1516,9 @@ function App() {
   `;
 }
 
-render(html`<${App}/>`, document.getElementById('root'));
+const _rootEl = document.getElementById('root');
+_rootEl.innerHTML = '';
+render(html`<${App}/>`, _rootEl);
 </script>
 </body>
 </html>
