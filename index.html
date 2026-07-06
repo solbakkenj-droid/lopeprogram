@@ -119,7 +119,8 @@ async function loadLog() {
   return m;
 }
 async function saveSession(row) {
-  await db.from("lop_sessions").upsert(row, { onConflict: "session_id" });
+  const { data: { user } } = await db.auth.getUser();
+  await db.from("lop_sessions").upsert({ ...row, user_id: user ? user.id : null }, { onConflict: "user_id,session_id" });
 }
 async function removeSession(id) {
   await db.from("lop_sessions").delete().eq("session_id", id);
@@ -1376,6 +1377,50 @@ function LineChart({ points, unit }) {
   `;
 }
 
+// ─── INNLOGGING ───────────────────────────────────────────────────────────────
+function LoginScreen() {
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const send = async () => {
+    const e = email.trim();
+    if (!e) return;
+    setBusy(true); setErr("");
+    const { error } = await db.auth.signInWithOtp({ email: e, options: { emailRedirectTo: window.location.origin } });
+    setBusy(false);
+    if (error) setErr(error.message); else setSent(true);
+  };
+  return html`
+    <div style=${{minHeight:"100vh",display:"flex",flexDirection:"column",justifyContent:"center",padding:"24px",maxWidth:420,margin:"0 auto"}}>
+      <div style=${{textAlign:"center",marginBottom:28}}>
+        <div style=${{fontSize:44,marginBottom:8}}>🏃</div>
+        <h1 style=${{margin:0,fontSize:24,fontWeight:600}}>Løpeprogram</h1>
+        <p style=${{margin:"6px 0 0",fontSize:14,color:"var(--color-text-secondary)"}}>Logg inn for din egen treningslogg</p>
+      </div>
+      ${sent
+        ? html`
+          <div style=${{background:"var(--color-background-success)",borderRadius:"var(--border-radius-lg)",padding:"22px",textAlign:"center"}}>
+            <i class="ti ti-mail-check" style=${{fontSize:34,color:"var(--color-text-success)"}}></i>
+            <p style=${{margin:"10px 0 4px",fontWeight:500}}>Sjekk e-posten din</p>
+            <p style=${{margin:0,fontSize:14,color:"var(--color-text-secondary)"}}>Vi sendte en innloggingslenke til <strong>${email}</strong>. Åpne den på denne enheten.</p>
+            <button onClick=${()=>setSent(false)} style=${{marginTop:16,padding:"10px 16px",fontSize:14}}>Bruk en annen e-post</button>
+          </div>`
+        : html`
+          <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"20px"}}>
+            <label style=${{display:"block",fontSize:13,color:"var(--color-text-secondary)",marginBottom:6}}>E-post</label>
+            <input type="email" inputmode="email" autocomplete="email" value=${email} onInput=${e=>setEmail(e.target.value)} placeholder="deg@epost.no"
+              onKeyDown=${e=>{ if(e.key==="Enter") send(); }}
+              style=${{width:"100%",boxSizing:"border-box",marginBottom:12}}/>
+            ${err && html`<p style=${{margin:"0 0 10px",fontSize:13,color:"#ff3b30"}}>${err}</p>`}
+            <button onClick=${send} disabled=${busy||!email.trim()} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15}}>
+              ${busy ? "Sender…" : "Send innloggingslenke"}
+            </button>
+            <p style=${{margin:"12px 0 0",fontSize:12,color:"var(--color-text-tertiary)",textAlign:"center"}}>Ingen passord. Du får en lenke på e-post og forblir innlogget.</p>
+          </div>`}
+    </div>`;
+}
+
 // ─── APP ──────────────────────────────────────────────────────────────────────
 function App() {
   const [tab, setTab] = useState("program");    // program | stats
@@ -1383,6 +1428,8 @@ function App() {
   const [log, setLog] = useState({});
   const [ready, setReady] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [unit, setUnit] = useState(() => localStorage.getItem("speedUnit") || "kmh");
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("lp_darkMode") || "system");
   const [voiceOn, setVoiceOnState] = useState(() => localStorage.getItem("voiceOn") !== "0");
@@ -1400,7 +1447,13 @@ function App() {
   const toggleDark = () => setDarkMode(m => m === "dark" ? "light" : m === "light" ? "system" : "dark");
   const toggleUnit = () => setUnit(u => { const n = u==="kmh"?"pace":"kmh"; localStorage.setItem("speedUnit", n); return n; });
 
-  useEffect(()=>{ (async()=>{ setLog(await loadLog()); setReady(true); })(); },[]);
+  useEffect(()=>{
+    db.auth.getSession().then(({data})=>{ setSession(data.session); setAuthReady(true); });
+    const { data: sub } = db.auth.onAuthStateChange((_e, s)=>setSession(s));
+    return ()=>{ try { sub.subscription.unsubscribe(); } catch {} };
+  },[]);
+  useEffect(()=>{ if(session){ (async()=>{ setLog(await loadLog()); setReady(true); })(); } },[session]);
+  const logout = async ()=>{ await db.auth.signOut(); setLog({}); setReady(false); setView({name:"list"}); setTab("program"); };
 
   const saveRec = async (row) => {
     setLog(l => ({ ...l, [row.session_id]: { ...l[row.session_id], ...row } }));
@@ -1417,6 +1470,9 @@ function App() {
 
   const weekObj = (wk) => PROGRAM.weeks.find(w => w.week === wk);
   const sessionObj = (wk, id) => { const w = weekObj(wk); const s = w.sessions.find(x=>x.id===id); return s ? { ...s, week: wk } : null; };
+
+  if (!authReady) return html`<div style=${{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--color-text-secondary)"}}>Laster…</div>`;
+  if (!session) return html`<${LoginScreen}/>`;
 
   let body;
   if (!ready) body = html`<p style=${{color:"var(--color-text-secondary)",textAlign:"center",paddingTop:40}}>Laster...</p>`;
@@ -1439,6 +1495,9 @@ function App() {
             </button>
             <button onClick=${toggleDark} style=${{background:"none",border:"none",padding:"4px 6px",fontSize:18,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1}} title="Bytt tema">
               ${darkMode==="dark"?"☀️":darkMode==="light"?"🌓":"🌙"}
+            </button>
+            <button onClick=${logout} style=${{background:"none",border:"none",padding:"4px 6px",fontSize:16,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1}} title="Logg ut">
+              <i class="ti ti-logout"></i>
             </button>
           </div>
         </div>
