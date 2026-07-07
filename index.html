@@ -137,10 +137,14 @@ async function stravaCall(body) {
   return data;
 }
 const round2 = v => v == null ? null : Math.round(v*100)/100;
-// Del fart-strøm (m/s) i gå-fart (rolig) og løpefart (raskt) via 1D 2-means
-function splitPaces(velocity) {
-  const kmh = (velocity||[]).map(v=>v*3.6).filter(v=>v>1.5);
-  if (kmh.length < 6) return null;
+const median = arr => { const s=[...arr].sort((x,y)=>x-y); return s.length ? s[Math.floor(s.length/2)] : null; };
+// Del økten i rolig (gange) og raskt (løp) via 1D 2-means på fart; median fart + puls per gruppe
+function splitStrava(velocity, heartrate) {
+  velocity = velocity || [];
+  const idx = [];
+  for (let i=0;i<velocity.length;i++) { if (velocity[i]*3.6 > 1.5) idx.push(i); }
+  if (idx.length < 6) return null;
+  const kmh = idx.map(i => velocity[i]*3.6);
   let a = Math.min(...kmh), b = Math.max(...kmh);
   for (let it=0; it<25; it++) {
     const ga=[], gb=[];
@@ -151,10 +155,18 @@ function splitPaces(velocity) {
     a=na; b=nb;
   }
   const slowC=Math.min(a,b), fastC=Math.max(a,b);
-  const slow=[], fast=[];
-  for (const v of kmh) (Math.abs(v-slowC)<=Math.abs(v-fastC)?slow:fast).push(v);
-  const med = arr => { const s=[...arr].sort((x,y)=>x-y); return s.length?s[Math.floor(s.length/2)]:null; };
-  return { easy_kmh: round2(med(slow)), work_kmh: round2(med(fast)) };
+  const sK=[], fK=[], sH=[], fH=[];
+  for (const i of idx) {
+    const v = velocity[i]*3.6;
+    const hr = heartrate && heartrate[i];
+    if (Math.abs(v-slowC) <= Math.abs(v-fastC)) { sK.push(v); if (hr) sH.push(hr); }
+    else { fK.push(v); if (hr) fH.push(hr); }
+  }
+  return {
+    easy_kmh: round2(median(sK)), work_kmh: round2(median(fK)),
+    easy_hr: sH.length ? Math.round(median(sH)) : null,
+    work_hr: fH.length ? Math.round(median(fH)) : null,
+  };
 }
 
 // ─── PROGRAM DATA ─────────────────────────────────────────────────────────────
@@ -1216,14 +1228,20 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
   const [sMsg, setSMsg] = useState("");
   const [picks, setPicks] = useState(null);
   const [justSaved, setJustSaved] = useState(false);
+  const [easyHr, setEasyHr] = useState(rec.easy_hr ?? null);
+  const [workHr, setWorkHr] = useState(rec.work_hr ?? null);
+  const [dist, setDist] = useState(rec.distance_m ?? null);
+  const [movTime, setMovTime] = useState(rec.moving_time_s ?? null);
   const useActivity = async (a) => {
     setSBusy(true); setPicks(null); setSMsg("");
     const s = await stravaCall({ action:"streams", id: a.id });
     setSBusy(false);
-    if (!s || s.error || !s.velocity) { setSMsg("Kunne ikke hente fartsdata."); return; }
-    const p = splitPaces(s.velocity);
+    if (!s || s.error || !s.velocity) { setSMsg("Kunne ikke hente data."); return; }
+    const p = splitStrava(s.velocity, s.heartrate);
     if (!p) { setSMsg("For lite fartsdata til å splitte."); return; }
     setEasy(p.easy_kmh); setThr(p.work_kmh);
+    setEasyHr(p.easy_hr); setWorkHr(p.work_hr);
+    setDist(a.distance || null); setMovTime(a.moving_time || null);
     setSMsg(`Hentet fra «${a.name}». Sjekk og juster ved behov.`);
   };
   const hentStrava = async () => {
@@ -1242,6 +1260,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
       done: markDone,
       done_date: markDone ? doneDate : null,
       easy_kmh: easy, threshold_kmh: thr, note: note || null,
+      easy_hr: easyHr, work_hr: workHr, distance_m: dist, moving_time_s: movTime,
     });
     setJustSaved(true);
     setTimeout(() => setJustSaved(false), 2000);
@@ -1301,6 +1320,11 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
                 <${SpeedInput} label=${easyLabel} kmh=${easy} unit=${unit} onChange=${setEasy}/>
               </div>`;
         })()}
+        ${(dist || workHr || easyHr) && html`
+          <div style=${{display:"flex",flexWrap:"wrap",gap:"6px 16px",marginBottom:14,fontSize:13,color:"var(--color-text-secondary)"}}>
+            ${dist ? html`<span><i class="ti ti-ruler-2" style=${{fontSize:14,verticalAlign:"-2px"}}></i> ${(dist/1000).toFixed(2)} km${movTime?` · ${Math.round(movTime/60)} min`:""}</span>` : ""}
+            ${(workHr||easyHr) ? html`<span><i class="ti ti-heartbeat" style=${{fontSize:14,verticalAlign:"-2px",color:"#ff3b30"}}></i> Puls ${workHr?`løp ${workHr}`:""}${workHr&&easyHr?" · ":""}${easyHr?`gange ${easyHr}`:""}</span>` : ""}
+          </div>`}
         <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Dato</label>
         <input type="date" value=${doneDate} onChange=${e=>setDoneDate(e.target.value)} style=${{width:"100%",marginBottom:14,boxSizing:"border-box"}}/>
         <textarea value=${note} onInput=${e=>setNote(e.target.value)} placeholder="Notat (hvordan føltes det?)" rows="2"
@@ -1453,6 +1477,16 @@ function StatsView({ log, unit }) {
     .filter(x => x.r && x.r.note)
     .sort((a,b)=> parseKey(b.r.done_date||todayKey()) - parseKey(a.r.done_date||todayKey()));
 
+  const hrPoints = allSessions().map(s=>({ s, r: log[s.id] }))
+    .filter(x => x.r && x.r.done && x.r.work_hr != null)
+    .sort((a,b)=> parseKey(a.r.done_date||todayKey()) - parseKey(b.r.done_date||todayKey()))
+    .map(x => ({ hr: x.r.work_hr }));
+  const weekKm = PROGRAM.weeks.map(w => ({
+    week: w.week,
+    km: Math.round(w.sessions.reduce((sum,s)=>{ const r=log[s.id]; return sum + (r&&r.distance_m ? r.distance_m/1000 : 0); },0) * 10)/10,
+  }));
+  const anyKm = weekKm.some(w => w.km > 0);
+
   return html`
     <div>
       <div style=${{display:"flex",gap:10,marginBottom:16}}>
@@ -1473,6 +1507,19 @@ function StatsView({ log, unit }) {
           ? html`<p style=${{color:"var(--color-text-secondary)",fontSize:14,paddingBottom:6}}>Logg arbeidsfart på minst to økter for å se utviklingen.</p>`
           : html`<${LineChart} points=${withThr.map(x=>({date:x.r.done_date,kmh:x.r.threshold_kmh}))} unit=${unit}/>`}
       </div>
+
+      ${hrPoints.length >= 2 && html`
+        <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:16}}>
+          <p style=${{margin:"0 0 4px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Puls under løp over tid</p>
+          <p style=${{margin:"0 0 14px",fontSize:13,color:"var(--color-text-tertiary)"}}>Lavere puls på samme fart = bedre form</p>
+          <${HrChart} points=${hrPoints}/>
+        </div>`}
+
+      ${anyKm && html`
+        <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:16}}>
+          <p style=${{margin:"0 0 14px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Distanse per uke (km)</p>
+          <${VolumeChart} weeks=${weekKm}/>
+        </div>`}
 
       <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px"}}>
         <p style=${{margin:"0 0 14px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Fremgang per fase</p>
@@ -1525,6 +1572,34 @@ function LineChart({ points, unit }) {
       <text x=${W-pad} y=${H-6} font-size="10" fill="var(--color-text-tertiary)" text-anchor="end">${fmt(points[points.length-1].kmh)}</text>
     </svg>
   `;
+}
+
+function HrChart({ points }) {
+  const W=300, H=130, pad=24;
+  const vals = points.map(p=>p.hr);
+  const min=Math.min(...vals), max=Math.max(...vals), span=(max-min)||1;
+  const x=i=>pad+(i/Math.max(1,points.length-1))*(W-2*pad);
+  const y=v=>pad+((max-v)/span)*(H-2*pad);
+  const path=vals.map((v,i)=>`${i===0?"M":"L"} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+  return html`
+    <svg viewBox="0 0 ${W} ${H}" style=${{width:"100%",height:"auto",display:"block"}}>
+      <path d=${path} fill="none" stroke="#ff3b30" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${vals.map((v,i)=>html`<circle key=${i} cx=${x(i)} cy=${y(v)} r="3.5" fill="#ff3b30"/>`)}
+      <text x=${pad} y="12" font-size="10" fill="var(--color-text-tertiary)">${points[0].hr}</text>
+      <text x=${W-pad} y=${H-6} font-size="10" fill="var(--color-text-tertiary)" text-anchor="end">${points[points.length-1].hr}</text>
+    </svg>`;
+}
+
+function VolumeChart({ weeks }) {
+  const max = Math.max(...weeks.map(w=>w.km), 1);
+  return html`
+    <div style=${{display:"flex",alignItems:"flex-end",gap:3,height:110}}>
+      ${weeks.map(w=>html`
+        <div key=${w.week} style=${{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,height:"100%",justifyContent:"flex-end"}}>
+          <div style=${{width:"72%",height:`${Math.round((w.km/max)*82)}px`,minHeight:w.km>0?3:0,background:"#1D9E75",borderRadius:3}}></div>
+          <span style=${{fontSize:9,color:"var(--color-text-tertiary)"}}>${w.week}</span>
+        </div>`)}
+    </div>`;
 }
 
 // ─── INNLOGGING ───────────────────────────────────────────────────────────────
