@@ -126,6 +126,37 @@ async function removeSession(id) {
   await db.from("lop_sessions").delete().eq("session_id", id);
 }
 
+// ─── STRAVA ───────────────────────────────────────────────────────────────────
+const STRAVA_CLIENT_ID = "263508";
+async function stravaCall(body) {
+  const { data, error } = await db.functions.invoke("strava", { body });
+  if (error && error.context && typeof error.context.json === "function") {
+    try { return await error.context.json(); } catch {}
+  }
+  if (error) return { error: error.message || "Feil" };
+  return data;
+}
+const round2 = v => v == null ? null : Math.round(v*100)/100;
+// Del fart-strøm (m/s) i gå-fart (rolig) og løpefart (raskt) via 1D 2-means
+function splitPaces(velocity) {
+  const kmh = (velocity||[]).map(v=>v*3.6).filter(v=>v>1.5);
+  if (kmh.length < 6) return null;
+  let a = Math.min(...kmh), b = Math.max(...kmh);
+  for (let it=0; it<25; it++) {
+    const ga=[], gb=[];
+    for (const v of kmh) (Math.abs(v-a)<=Math.abs(v-b)?ga:gb).push(v);
+    if (!ga.length || !gb.length) break;
+    const na=ga.reduce((x,y)=>x+y,0)/ga.length, nb=gb.reduce((x,y)=>x+y,0)/gb.length;
+    if (Math.abs(na-a)<0.01 && Math.abs(nb-b)<0.01) { a=na; b=nb; break; }
+    a=na; b=nb;
+  }
+  const slowC=Math.min(a,b), fastC=Math.max(a,b);
+  const slow=[], fast=[];
+  for (const v of kmh) (Math.abs(v-slowC)<=Math.abs(v-fastC)?slow:fast).push(v);
+  const med = arr => { const s=[...arr].sort((x,y)=>x-y); return s.length?s[Math.floor(s.length/2)]:null; };
+  return { easy_kmh: round2(med(slow)), work_kmh: round2(med(fast)) };
+}
+
 // ─── PROGRAM DATA ─────────────────────────────────────────────────────────────
 const PROGRAM = {
   "programName": "12-ukers løpeprogram",
@@ -1164,7 +1195,7 @@ function GuidedConfig({ session, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onS
   `;
 }
 
-function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onBack, onSave, onDelete }) {
+function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, setVoiceURI, stravaConnected, onBack, onSave, onDelete }) {
   const rec = log[session.id] || {};
   const [mode, setMode] = useState("detail"); // detail | config | guided
   const [choices, setChoices] = useState(null);
@@ -1173,6 +1204,27 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
   const [thr, setThr] = useState(rec.threshold_kmh ?? null);
   const [note, setNote] = useState(rec.note || "");
   const done = !!rec.done;
+  const [sBusy, setSBusy] = useState(false);
+  const [sMsg, setSMsg] = useState("");
+  const [picks, setPicks] = useState(null);
+  const useActivity = async (a) => {
+    setSBusy(true); setPicks(null); setSMsg("");
+    const s = await stravaCall({ action:"streams", id: a.id });
+    setSBusy(false);
+    if (!s || s.error || !s.velocity) { setSMsg("Kunne ikke hente fartsdata."); return; }
+    const p = splitPaces(s.velocity);
+    if (!p) { setSMsg("For lite fartsdata til å splitte."); return; }
+    setEasy(p.easy_kmh); setThr(p.work_kmh);
+    setSMsg(`Hentet fra «${a.name}». Sjekk og juster ved behov.`);
+  };
+  const hentStrava = async () => {
+    setSBusy(true); setSMsg(""); setPicks(null);
+    const r = await stravaCall({ action:"activities", date: doneDate });
+    if (!r || r.error || !r.activities) { setSBusy(false); setSMsg("Kunne ikke hente fra Strava."); return; }
+    if (r.activities.length === 0) { setSBusy(false); setSMsg("Fant ingen Strava-økt på " + doneDate + "."); return; }
+    if (r.activities.length === 1) { await useActivity(r.activities[0]); return; }
+    setSBusy(false); setPicks(r.activities);
+  };
 
   const save = (markDone) => {
     onSave({
@@ -1215,6 +1267,17 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
 
       <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:14}}>
         <p style=${{margin:"0 0 14px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Logg økten</p>
+        ${stravaConnected && html`
+          <div style=${{marginBottom:14}}>
+            <button onClick=${hentStrava} disabled=${sBusy} style=${{width:"100%",padding:"11px",fontSize:14,background:"#FC4C02",color:"#fff",border:"none"}}>
+              <i class="ti ti-brand-strava"></i> ${sBusy ? "Henter…" : "Hent fra Strava"}
+            </button>
+            ${sMsg && html`<p style=${{margin:"8px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>${sMsg}</p>`}
+            ${picks && html`<div style=${{marginTop:8}}>
+              <p style=${{margin:"0 0 6px",fontSize:12,color:"var(--color-text-secondary)"}}>Flere økter denne dagen – velg:</p>
+              ${picks.map(a=>html`<button key=${a.id} onClick=${()=>useActivity(a)} style=${{display:"block",width:"100%",textAlign:"left",padding:"9px 12px",fontSize:13,marginBottom:6}}>${a.name} · ${(a.distance/1000).toFixed(2)} km</button>`)}
+            </div>`}
+          </div>`}
         ${(() => {
           const p = sessionPaces(session);
           const easyLabel = p.easy ? cap(iLabel(p.easy)) : "Fart";
@@ -1290,7 +1353,7 @@ function WeekView({ week, log, onBack, onOpen }) {
   `;
 }
 
-function ProgramView({ log, onOpenWeek, onOpenSession }) {
+function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnectStrava, onDisconnectStrava }) {
   // Neste økt = første ikke-gjorte, ikke-valgfrie økt
   const next = allSessions().find(s => !s.optional && !(log[s.id] && log[s.id].done));
   const totalDone = allSessions().filter(s => log[s.id] && log[s.id].done).length;
@@ -1338,6 +1401,20 @@ function ProgramView({ log, onOpenWeek, onOpenSession }) {
             <p style=${{margin:"0 0 2px",fontSize:13,fontWeight:600,color:"var(--color-text-info)"}}>${r.tittel}</p>
             <p style=${{margin:0,fontSize:13,lineHeight:1.55,color:"var(--color-text-secondary)"}}>${r.tekst}</p>
           </div>`)}
+      </div>
+
+      <div style=${{marginTop:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
+        <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Strava</p>
+        ${stravaConnected
+          ? html`<div style=${{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style=${{fontSize:14,color:"var(--color-text-success)",fontWeight:500}}><i class="ti ti-circle-check"></i> Tilkoblet</span>
+              <button onClick=${onDisconnectStrava} style=${{padding:"8px 12px",fontSize:13,color:"var(--color-text-secondary)"}}>Koble fra</button>
+            </div>
+            <p style=${{margin:"8px 0 0",fontSize:12,color:"var(--color-text-tertiary)"}}>Åpne en økt og trykk «Hent fra Strava» for å fylle inn fart automatisk.</p>`
+          : html`<button onClick=${onConnectStrava} style=${{width:"100%",padding:"13px",fontSize:15,background:"#FC4C02",color:"#fff",border:"none"}}>
+              <i class="ti ti-brand-strava"></i> Koble til Strava
+            </button>
+            <p style=${{margin:"8px 0 0",fontSize:12,color:"var(--color-text-tertiary)"}}>Henter fart automatisk fra øktene dine (også private).</p>`}
       </div>
     </div>
   `;
@@ -1490,6 +1567,7 @@ function App() {
   const setVoiceOn = (v) => { setVoiceOnState(v); localStorage.setItem("voiceOn", v ? "1" : "0"); };
   const setVoiceURI = (v) => { setVoiceURIState(v); localStorage.setItem("voiceURI", v || ""); };
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [stravaConnected, setStravaConnected] = useState(false);
 
   useEffect(() => {
     const body = document.body;
@@ -1506,8 +1584,21 @@ function App() {
     const { data: sub } = db.auth.onAuthStateChange((_e, s)=>setSession(s));
     return ()=>{ try { sub.subscription.unsubscribe(); } catch {} };
   },[]);
-  useEffect(()=>{ if(session){ (async()=>{ setLog(await loadLog()); setReady(true); })(); } },[session]);
-  const logout = async ()=>{ await db.auth.signOut(); setLog({}); setReady(false); setView({name:"list"}); setTab("program"); };
+  useEffect(()=>{ if(session){ (async()=>{
+    setLog(await loadLog()); setReady(true);
+    try {
+      const code = new URLSearchParams(location.search).get("code");
+      if (code) { await stravaCall({ action:"exchange", code }); history.replaceState({}, "", location.pathname); }
+      const st = await stravaCall({ action:"status" });
+      setStravaConnected(!!(st && st.connected));
+    } catch {}
+  })(); } },[session]);
+  const logout = async ()=>{ await db.auth.signOut(); setLog({}); setReady(false); setView({name:"list"}); setTab("program"); setStravaConnected(false); };
+  const connectStrava = () => {
+    const redirect = location.origin + location.pathname;
+    location.href = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirect)}&response_type=code&approval_prompt=auto&scope=activity:read_all`;
+  };
+  const disconnectStrava = async () => { await stravaCall({ action:"disconnect" }); setStravaConnected(false); };
 
   const saveRec = async (row) => {
     setLog(l => ({ ...l, [row.session_id]: { ...l[row.session_id], ...row } }));
@@ -1532,8 +1623,8 @@ function App() {
   if (!ready) body = html`<p style=${{color:"var(--color-text-secondary)",textAlign:"center",paddingTop:40}}>Laster...</p>`;
   else if (tab === "stats") body = html`<${StatsView} log=${log} unit=${unit}/>`;
   else if (view.name === "week") body = html`<${WeekView} key=${"w"+view.week} week=${weekObj(view.week)} log=${log} onBack=${()=>setView({name:"list"})} onOpen=${openSession}/>`;
-  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId)} week=${weekObj(view.week)} log=${log} unit=${unit} voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI} onBack=${()=>setView({name:"week",week:view.week})} onSave=${saveRec} onDelete=${deleteRec}/>`;
-  else body = html`<${ProgramView} log=${log} onOpenWeek=${openWeek} onOpenSession=${openSession}/>`;
+  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId)} week=${weekObj(view.week)} log=${log} unit=${unit} voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI} stravaConnected=${stravaConnected} onBack=${()=>setView({name:"week",week:view.week})} onSave=${saveRec} onDelete=${deleteRec}/>`;
+  else body = html`<${ProgramView} log=${log} onOpenWeek=${openWeek} onOpenSession=${openSession} stravaConnected=${stravaConnected} onConnectStrava=${connectStrava} onDisconnectStrava=${disconnectStrava}/>`;
 
   const title = tab==="stats" ? "Statistikk" : "Løpeprogram";
 
