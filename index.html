@@ -1236,7 +1236,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
             ? html`<button onClick=${()=>save(true)} class="btn-primary" style=${{flex:1,padding:"13px",fontSize:15}}><i class="ti ti-check"></i> Kryss av som gjort</button>`
             : html`
               <button onClick=${()=>save(true)} class="btn-primary" style=${{flex:1,padding:"13px",fontSize:15}}><i class="ti ti-device-floppy"></i> Lagre endringer</button>
-              <button onClick=${()=>onDelete(session.id)} style=${{padding:"13px 16px",fontSize:14,color:"var(--color-text-secondary)"}}><i class="ti ti-arrow-back-up"></i></button>
+              <button onClick=${()=>onDelete(session.id)} style=${{padding:"13px 16px",fontSize:14,color:"var(--color-text-secondary)"}}><i class="ti ti-arrow-back-up"></i> Angre økt</button>
             `}
         </div>
       </div>
