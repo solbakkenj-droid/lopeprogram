@@ -1242,6 +1242,12 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
     setEasy(p.easy_kmh); setThr(p.work_kmh);
     setEasyHr(p.easy_hr); setWorkHr(p.work_hr);
     setDist(a.distance || null); setMovTime(a.moving_time || null);
+    if (s.description) {
+      setNote(prev => {
+        const manual = (prev||"").split("\n").filter(l => !l.trim().startsWith("Strava:")).join("\n").trim();
+        return manual ? `${manual}\nStrava: ${s.description}` : `Strava: ${s.description}`;
+      });
+    }
     setSMsg(`Hentet fra «${a.name}». Sjekk og juster ved behov.`);
   };
   const hentStrava = async () => {
