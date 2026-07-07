@@ -1493,7 +1493,7 @@ function StatsView({ log, unit }) {
   const hrPoints = allSessions().map(s=>({ s, r: log[s.id] }))
     .filter(x => x.r && x.r.done && x.r.work_hr != null)
     .sort((a,b)=> parseKey(a.r.done_date||todayKey()) - parseKey(b.r.done_date||todayKey()))
-    .map(x => ({ hr: x.r.work_hr }));
+    .map(x => ({ hr: x.r.work_hr, date: x.r.done_date }));
   const weekKm = PROGRAM.weeks.map(w => ({
     week: w.week,
     km: Math.round(w.sessions.reduce((sum,s)=>{ const r=log[s.id]; return sum + (r&&r.distance_m ? r.distance_m/1000 : 0); },0) * 10)/10,
@@ -1568,43 +1568,43 @@ function StatsView({ log, unit }) {
   `;
 }
 
-function LineChart({ points, unit }) {
-  const W = 300, H = 130, pad = 24;
-  const vals = points.map(p => unit==="pace" ? 3600/p.kmh : p.kmh); // pace i sek/km
-  const min = Math.min(...vals), max = Math.max(...vals);
-  const span = (max-min) || 1;
-  const x = i => pad + (i/(points.length-1))*(W-2*pad);
-  const y = v => {
-    // for pace: lavere = bedre → vis lav verdi høyt oppe
-    const norm = unit==="pace" ? (v-min)/span : (max-v)/span;
-    return pad + norm*(H-2*pad);
-  };
+function AxisChart({ vals, dates, fmt, color }) {
+  const W=320, H=150, padL=46, padR=16, padT=16, padB=22;
+  const n = vals.length;
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max-min)||1;
+  const x = i => padL + (i/Math.max(1,n-1))*(W-padL-padR);
+  const y = v => padT + ((max-v)/span)*(H-padT-padB); // høyest verdi øverst
   const path = vals.map((v,i)=>`${i===0?"M":"L"} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
-  const fmt = (kmh) => unit==="pace" ? kmhToPace(kmh) : kmh;
+  const yRefs = [max, (max+min)/2, min];
+  const dLabel = d => { if(!d) return ""; const dt=parseKey(d); return `${dt.getDate()}.${dt.getMonth()+1}`; };
+  const xIdx = n>2 ? [0, Math.floor((n-1)/2), n-1] : vals.map((_,i)=>i);
+  const last = vals[n-1];
   return html`
     <svg viewBox="0 0 ${W} ${H}" style=${{width:"100%",height:"auto",display:"block"}}>
-      <path d=${path} fill="none" stroke="#1D9E75" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      ${vals.map((v,i)=>html`<circle key=${i} cx=${x(i)} cy=${y(v)} r="3.5" fill="#1D9E75"/>`)}
-      <text x=${pad} y="12" font-size="10" fill="var(--color-text-tertiary)">${fmt(points[0].kmh)}</text>
-      <text x=${W-pad} y=${H-6} font-size="10" fill="var(--color-text-tertiary)" text-anchor="end">${fmt(points[points.length-1].kmh)}</text>
-    </svg>
-  `;
+      ${yRefs.map((v,i)=>html`
+        <line key=${"g"+i} x1=${padL} y1=${y(v).toFixed(1)} x2=${W-padR} y2=${y(v).toFixed(1)} stroke="var(--color-border-tertiary)" stroke-width="0.5"/>
+        <text key=${"yt"+i} x=${padL-6} y=${(y(v)+3).toFixed(1)} font-size="9" fill="var(--color-text-tertiary)" text-anchor="end">${fmt(v)}</text>`)}
+      <path d=${path} fill="none" stroke=${color} stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${vals.map((v,i)=>html`<circle key=${"c"+i} cx=${x(i).toFixed(1)} cy=${y(v).toFixed(1)} r="3" fill=${color}/>`)}
+      ${xIdx.map((i,j)=>html`<text key=${"xt"+j} x=${x(i).toFixed(1)} y=${H-6} font-size="9" fill="var(--color-text-tertiary)" text-anchor=${i===0?"start":i===n-1?"end":"middle"}>${dLabel(dates[i])}</text>`)}
+      <text x=${(x(n-1)).toFixed(1)} y=${(y(last)-8).toFixed(1)} font-size="11" font-weight="700" fill=${color} text-anchor="end">${fmt(last)}</text>
+    </svg>`;
+}
+
+function LineChart({ points, unit }) {
+  return html`<${AxisChart}
+    vals=${points.map(p=>p.kmh)}
+    dates=${points.map(p=>p.date)}
+    fmt=${k => unit==="pace" ? kmhToPace(k) : (Math.round(k*10)/10)+""}
+    color="#1D9E75"/>`;
 }
 
 function HrChart({ points }) {
-  const W=300, H=130, pad=24;
-  const vals = points.map(p=>p.hr);
-  const min=Math.min(...vals), max=Math.max(...vals), span=(max-min)||1;
-  const x=i=>pad+(i/Math.max(1,points.length-1))*(W-2*pad);
-  const y=v=>pad+((max-v)/span)*(H-2*pad);
-  const path=vals.map((v,i)=>`${i===0?"M":"L"} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
-  return html`
-    <svg viewBox="0 0 ${W} ${H}" style=${{width:"100%",height:"auto",display:"block"}}>
-      <path d=${path} fill="none" stroke="#ff3b30" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      ${vals.map((v,i)=>html`<circle key=${i} cx=${x(i)} cy=${y(v)} r="3.5" fill="#ff3b30"/>`)}
-      <text x=${pad} y="12" font-size="10" fill="var(--color-text-tertiary)">${points[0].hr}</text>
-      <text x=${W-pad} y=${H-6} font-size="10" fill="var(--color-text-tertiary)" text-anchor="end">${points[points.length-1].hr}</text>
-    </svg>`;
+  return html`<${AxisChart}
+    vals=${points.map(p=>p.hr)}
+    dates=${points.map(p=>p.date)}
+    fmt=${v => Math.round(v)+""}
+    color="#ff3b30"/>`;
 }
 
 function VolumeChart({ weeks }) {
