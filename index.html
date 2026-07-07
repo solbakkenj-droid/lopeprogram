@@ -975,6 +975,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
     if (running) {
       const cur = steps[idx], nxt = steps[idx+1];
       ref.current = setInterval(()=>{
+        if (voiceOn) { try { window.speechSynthesis && window.speechSynthesis.resume(); } catch {} }
         setRem(r=>{
           if (r <= 1) return 0;
           const nr = r-1;
@@ -1024,6 +1025,10 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
   const pct = step.sec ? Math.round(((step.sec-rem)/step.sec)*100) : 0;
   const circ = Math.round(2*Math.PI*70);
   const col = iColor(step.intensity);
+  const totalSec = steps.reduce((a,x)=>a+x.sec,0);
+  let elapsedSec = 0; for (let i=0;i<idx;i++) elapsedSec += steps[i].sec;
+  elapsedSec += step.sec - rem;
+  const overallPct = totalSec ? Math.round((elapsedSec/totalSec)*100) : 0;
 
   return html`
     <div>
@@ -1064,12 +1069,18 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
         <i class="ti ti-x"></i> Avslutt guidet økt
       </button>
       ${locked && html`
-        <div style=${{position:"fixed",inset:0,zIndex:1000,background:"var(--color-background-secondary)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
-          <div style=${{display:"inline-block",padding:"6px 20px",borderRadius:22,background:col,color:"#fff",fontSize:17,fontWeight:600,marginBottom:16}}>${iLabel(step.intensity)}</div>
-          <div style=${{fontSize:72,fontWeight:500,fontVariantNumeric:"tabular-nums",lineHeight:1,marginBottom:8}}>${m>0?`${m}:${pad(s)}`:s}</div>
-          <p style=${{color:"var(--color-text-secondary)",marginBottom:44}}><i class="ti ti-lock"></i> Skjermen er låst</p>
+        <div style=${{position:"fixed",inset:0,zIndex:1000,background:"var(--color-background-secondary)",display:"flex",flexDirection:"column",padding:"22px 20px",boxSizing:"border-box"}}>
+          <div style=${{display:"flex",gap:2,marginBottom:10}}>
+            ${steps.map((_,i)=>html`<div key=${i} style=${{flex:1,height:6,borderRadius:3,background:i<=idx?col:"var(--color-border-tertiary)",opacity:i<=idx?1:0.5}}></div>`)}
+          </div>
+          <p style=${{textAlign:"center",margin:0,fontSize:17,fontWeight:500,color:"var(--color-text-secondary)"}}>Steg ${idx+1} / ${steps.length} · ${overallPct}%</p>
+          <div style=${{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center"}}>
+            <div style=${{display:"inline-block",padding:"12px 34px",borderRadius:34,background:col,color:"#fff",fontSize:34,fontWeight:700,marginBottom:16}}>${iLabel(step.intensity)}</div>
+            <p style=${{margin:"0 0 16px",fontSize:28,fontWeight:600,color:"var(--color-text-secondary)"}}>${step.label}</p>
+            <div style=${{fontSize:72,fontWeight:600,fontVariantNumeric:"tabular-nums",lineHeight:1}}>${m>0?`${m}:${pad(s)}`:s}</div>
+          </div>
           <button onPointerDown=${startUnlock} onPointerUp=${cancelUnlock} onPointerLeave=${cancelUnlock} onPointerCancel=${cancelUnlock}
-            style=${{padding:"16px 30px",fontSize:15,borderRadius:30,border:"1px solid var(--color-border-secondary)"}}>
+            style=${{padding:"18px",fontSize:16,borderRadius:30,border:"1px solid var(--color-border-secondary)"}}>
             <i class="ti ti-lock-open"></i> ${unlockHint ? "Hold inne…" : "Hold for å låse opp"}
           </button>
         </div>`}
@@ -1478,6 +1489,7 @@ function App() {
   const [voiceURI, setVoiceURIState] = useState(() => localStorage.getItem("voiceURI") || "");
   const setVoiceOn = (v) => { setVoiceOnState(v); localStorage.setItem("voiceOn", v ? "1" : "0"); };
   const setVoiceURI = (v) => { setVoiceURIState(v); localStorage.setItem("voiceURI", v || ""); };
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   useEffect(() => {
     const body = document.body;
@@ -1538,7 +1550,7 @@ function App() {
             <button onClick=${toggleDark} style=${{background:"none",border:"none",padding:"4px 6px",fontSize:18,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1}} title="Bytt tema">
               ${darkMode==="dark"?"☀️":darkMode==="light"?"🌓":"🌙"}
             </button>
-            <button onClick=${logout} style=${{background:"none",border:"none",padding:"4px 6px",fontSize:16,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1}} title="Logg ut">
+            <button onClick=${()=>setConfirmLogout(true)} style=${{background:"none",border:"none",padding:"4px 6px",fontSize:16,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1}} title="Logg ut">
               <i class="ti ti-logout"></i>
             </button>
           </div>
@@ -1554,6 +1566,15 @@ function App() {
             <span style=${{fontSize:11,fontWeight:tab===t.id?500:400}}>${t.label}</span>
           </button>`)}
       </nav>
+      ${confirmLogout && html`
+        <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick=${()=>setConfirmLogout(false)}>
+          <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",padding:"22px",maxWidth:320,width:"100%",textAlign:"center"}}>
+            <p style=${{margin:"0 0 4px",fontSize:17,fontWeight:600}}>Logge ut?</p>
+            <p style=${{margin:"0 0 18px",fontSize:14,color:"var(--color-text-secondary)"}}>Du må logge inn igjen med e-post og passord.</p>
+            <button onClick=${()=>{ setConfirmLogout(false); logout(); }} style=${{width:"100%",padding:"13px",fontSize:15,marginBottom:8,background:"#ff3b30",color:"#fff",border:"none"}}>Logg ut</button>
+            <button onClick=${()=>setConfirmLogout(false)} style=${{width:"100%",padding:"12px",fontSize:14,color:"var(--color-text-secondary)"}}>Avbryt</button>
+          </div>
+        </div>`}
     </div>
   `;
 }
