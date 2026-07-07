@@ -1215,6 +1215,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
   const [sBusy, setSBusy] = useState(false);
   const [sMsg, setSMsg] = useState("");
   const [picks, setPicks] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
   const useActivity = async (a) => {
     setSBusy(true); setPicks(null); setSMsg("");
     const s = await stravaCall({ action:"streams", id: a.id });
@@ -1242,6 +1243,8 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
       done_date: markDone ? doneDate : null,
       easy_kmh: easy, threshold_kmh: thr, note: note || null,
     });
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
   };
 
   if (mode === "config") return html`<div style=${{padding:"4px 2px"}}><${GuidedConfig} session=${session}
@@ -1304,9 +1307,9 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
           style=${{width:"100%",resize:"none",fontSize:14,border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-md)",padding:"9px 12px",background:"var(--color-background-secondary)",boxSizing:"border-box",lineHeight:1.5}}></textarea>
         <div style=${{display:"flex",gap:10,marginTop:14}}>
           ${!done
-            ? html`<button onClick=${()=>save(true)} class="btn-primary" style=${{flex:1,padding:"13px",fontSize:15}}><i class="ti ti-check"></i> Kryss av som gjort</button>`
+            ? html`<button onClick=${()=>save(true)} class="btn-primary" style=${{flex:1,padding:"13px",fontSize:15}}>${justSaved ? html`<i class="ti ti-check"></i> Lagret!` : html`<i class="ti ti-check"></i> Kryss av som gjort`}</button>`
             : html`
-              <button onClick=${()=>save(true)} class="btn-primary" style=${{flex:1,padding:"13px",fontSize:15}}><i class="ti ti-device-floppy"></i> Lagre endringer</button>
+              <button onClick=${()=>save(true)} class="btn-primary" style=${{flex:1,padding:"13px",fontSize:15}}>${justSaved ? html`<i class="ti ti-check"></i> Lagret!` : html`<i class="ti ti-device-floppy"></i> Lagre endringer`}</button>
               <button onClick=${()=>onDelete(session.id)} style=${{padding:"13px 16px",fontSize:14,color:"var(--color-text-secondary)"}}><i class="ti ti-arrow-back-up"></i> Angre økt</button>
             `}
         </div>
