@@ -1469,6 +1469,7 @@ function StatsView({ log, unit }) {
     .sort((a,b)=>parseKey(a.r.done_date||todayKey())-parseKey(b.r.done_date||todayKey()));
 
   const totalMin = doneAll.reduce((sum,s)=>sum+sessionMinutes(s),0);
+  const totalKm = Math.round(doneAll.reduce((sum,s)=>{ const r=log[s.id]; return sum + (r&&r.distance_m ? r.distance_m/1000 : 0); },0) * 10)/10;
 
   // fase-progresjon
   const phases = [...new Set(PROGRAM.weeks.map(w=>w.phase))];
@@ -1501,8 +1502,12 @@ function StatsView({ log, unit }) {
           <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>økter gjort</p>
         </div>
         <div style=${{flex:1,background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px",textAlign:"center"}}>
+          <p style=${{margin:0,fontSize:28,fontWeight:600}}>${totalKm}</p>
+          <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>km totalt</p>
+        </div>
+        <div style=${{flex:1,background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px",textAlign:"center"}}>
           <p style=${{margin:0,fontSize:28,fontWeight:600}}>${totalMin}</p>
-          <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>minutter løpt</p>
+          <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>minutter</p>
         </div>
       </div>
 
