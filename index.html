@@ -759,6 +759,10 @@ function parseKey(key) {
   return new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2]), 12, 0, 0);
 }
 const pad = n => String(n).padStart(2, "0");
+const WEEKDAYS = ["Søndag","Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag"];
+const weekdayName = (dateStr) => { if (!dateStr) return null; const d = parseKey(dateStr); return WEEKDAYS[d.getDay()]; };
+// Fullført økt viser faktisk ukedag (fra dato); ellers planlagt dag
+const displayDay = (session, rec) => (rec && rec.done && rec.done_date) ? (weekdayName(rec.done_date) || session.plannedDay) : session.plannedDay;
 
 // Varighet → tekst (matcher bokas stil: "90 sek", "2 min", "7:30 min")
 function durText(sec) {
@@ -1289,7 +1293,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
       </button>
 
       <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-        <h1 style=${{margin:0,fontSize:22,fontWeight:600}}>${session.plannedDay}</h1>
+        <h1 style=${{margin:0,fontSize:22,fontWeight:600}}>${displayDay(session, rec)}</h1>
         ${done && html`<span style=${{fontSize:13,color:"var(--color-text-success)",fontWeight:500}}><i class="ti ti-circle-check"></i> Gjort ${rec.done_date||""}</span>`}
       </div>
       ${session.optional && html`<span style=${{display:"inline-block",fontSize:12,background:"var(--color-background-info)",color:"var(--color-text-info)",padding:"2px 10px",borderRadius:6,marginBottom:8}}>Valgfri</span>`}
@@ -1383,7 +1387,7 @@ function WeekView({ week, log, onBack, onOpen }) {
               </span>
               <div style=${{flex:1,minWidth:0}}>
                 <div style=${{display:"flex",alignItems:"center",gap:8}}>
-                  <p style=${{margin:0,fontSize:15,fontWeight:500}}>${s.plannedDay}</p>
+                  <p style=${{margin:0,fontSize:15,fontWeight:500}}>${displayDay(s, log[s.id])}</p>
                   ${s.optional && html`<span style=${{fontSize:11,color:"var(--color-text-info)"}}>valgfri</span>`}
                 </div>
                 <p style=${{margin:"3px 0 0",fontSize:13,color:"var(--color-text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${segmentSummary(s)}</p>
