@@ -939,13 +939,21 @@ function SegmentList({ session }) {
 
 // Fart-input: viser km/t eller pace basert på unit
 function SpeedInput({ label, kmh, unit, onChange }) {
-  const [raw, setRaw] = useState(unit === "pace" ? kmhToPace(kmh) : (kmh ?? ""));
-  useEffect(() => { setRaw(unit === "pace" ? kmhToPace(kmh) : (kmh ?? "")); }, [unit]);
+  const fmt = (k) => unit === "pace" ? kmhToPace(k) : (k ?? "");
+  const [raw, setRaw] = useState(fmt(kmh));
+  const lastEmitted = useRef(kmh);
+  useEffect(() => { setRaw(fmt(kmh)); }, [unit]);
+  // Synk visningen når verdien endres utenfra (f.eks. hentet fra Strava)
+  useEffect(() => { if (kmh !== lastEmitted.current) { setRaw(fmt(kmh)); lastEmitted.current = kmh; } }, [kmh]);
   const commit = (v) => {
     setRaw(v);
-    if (v === "" || v == null) { onChange(null); return; }
-    if (unit === "pace") { const k = paceToKmh(v); onChange(k); }
-    else { const k = parseFloat(String(v).replace(",", ".")); onChange(isNaN(k)?null:Math.round(k*100)/100); }
+    let k = null;
+    if (v !== "" && v != null) {
+      if (unit === "pace") k = paceToKmh(v);
+      else { const p = parseFloat(String(v).replace(",", ".")); k = isNaN(p) ? null : Math.round(p*100)/100; }
+    }
+    lastEmitted.current = k;
+    onChange(k);
   };
   return html`
     <div style=${{flex:1}}>
