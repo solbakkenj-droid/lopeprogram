@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Løpeprogram">
+  <meta name="mobile-web-app-capable" content="yes">
   <title>Løpeprogram</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
   <style>
@@ -125,6 +129,9 @@ async function saveSession(row) {
 async function removeSession(id) {
   await db.from("lop_sessions").delete().eq("session_id", id);
 }
+
+// ─── WAKE LOCK FALLBACK (silent video, for eldre iOS uten Wake Lock API) ──────
+const NOSLEEP_VIDEO_SRC = "data:video/mp4;base64,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";
 
 // ─── STRAVA ───────────────────────────────────────────────────────────────────
 const STRAVA_CLIENT_ID = "263508";
@@ -1001,14 +1008,36 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
   const [shield, setShield] = useState(false);
   const ref = useRef(null);
   const wakeRef = useRef(null);
+  const videoRef = useRef(null);
   const unlockRef = useRef(null);
   const startedRef = useRef(false);
   const runningRef = useRef(false);
   const preAnn = useRef({});
   useEffect(()=>{ runningRef.current = running; },[running]);
 
-  const acquireWake = async () => { try { if (navigator.wakeLock) wakeRef.current = await navigator.wakeLock.request("screen"); } catch {} };
-  const releaseWake = () => { try { if (wakeRef.current) { wakeRef.current.release(); wakeRef.current = null; } } catch {} };
+  // Skjermlås-fix: Wake Lock API (moderne nettlesere) + skjult videoloop som fallback
+  // for eldre iOS/Safari uten støtte. Begge kjøres samtidig for best sjanse for å lykkes.
+  const acquireWake = async () => {
+    try { if (navigator.wakeLock) wakeRef.current = await navigator.wakeLock.request("screen"); } catch {}
+    try {
+      if (!videoRef.current) {
+        const v = document.createElement("video");
+        v.setAttribute("src", NOSLEEP_VIDEO_SRC);
+        v.setAttribute("playsinline", "");
+        v.setAttribute("muted", "");
+        v.muted = true;
+        v.loop = true;
+        v.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0.01;pointer-events:none;";
+        document.body.appendChild(v);
+        videoRef.current = v;
+      }
+      await videoRef.current.play();
+    } catch {}
+  };
+  const releaseWake = () => {
+    try { if (wakeRef.current) { wakeRef.current.release(); wakeRef.current = null; } } catch {}
+    try { if (videoRef.current) { videoRef.current.pause(); } } catch {}
+  };
   const announce = (i) => { if (!voiceOn || !steps[i]) return; say(stepSpoken(steps[i]), voiceURI); };
 
   const toggleRun = () => {
@@ -1026,9 +1055,12 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
   const cancelUnlock = () => { setUnlockHint(false); if (unlockRef.current) clearTimeout(unlockRef.current); };
 
   useEffect(()=>{
-    const onVis = () => { if (document.visibilityState === "visible" && runningRef.current && !wakeRef.current) acquireWake(); };
+    const onVis = () => { if (document.visibilityState === "visible" && runningRef.current) acquireWake(); };
     document.addEventListener("visibilitychange", onVis);
-    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(ref.current); releaseWake(); setDuck(false); };
+    return () => {
+      document.removeEventListener("visibilitychange", onVis); clearInterval(ref.current); releaseWake(); setDuck(false);
+      if (videoRef.current) { try { videoRef.current.remove(); } catch {} videoRef.current = null; }
+    };
   },[]);
 
   useEffect(()=>{
@@ -1153,7 +1185,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
 function GuidedConfig({ session, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onStart, onCancel }) {
   const initial = {};
   session.segments.forEach((seg,i)=>{
-    if (seg.repeatsRange) initial[i] = { reps: seg.repeatsRange[0] };
+    if (seg.repeatsRange) initial[i] = { reps: seg.repeatsRange[1] };
     else if (seg.durationRangeSec) initial[i] = { sec: seg.durationRangeSec[0] };
   });
   const [choices, setChoices] = useState(initial);
@@ -1693,6 +1725,7 @@ function App() {
   const setVoiceOn = (v) => { setVoiceOnState(v); localStorage.setItem("voiceOn", v ? "1" : "0"); };
   const setVoiceURI = (v) => { setVoiceURIState(v); localStorage.setItem("voiceURI", v || ""); };
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [stravaConnected, setStravaConnected] = useState(false);
 
   useEffect(() => {
@@ -1767,6 +1800,9 @@ function App() {
             <button onClick=${toggleDark} style=${{background:"none",border:"none",padding:"4px 6px",fontSize:18,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1}} title="Bytt tema">
               ${darkMode==="dark"?"☀️":darkMode==="light"?"🌓":"🌙"}
             </button>
+            <button onClick=${()=>setShowHelp(true)} style=${{background:"none",border:"1px solid var(--color-border-secondary)",borderRadius:"50%",width:26,height:26,padding:0,fontSize:13,fontWeight:600,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}} title="Hvordan fungerer appen?">
+              ?
+            </button>
             <button onClick=${()=>setConfirmLogout(true)} style=${{background:"none",border:"none",padding:"4px 6px",fontSize:16,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1}} title="Logg ut">
               <i class="ti ti-logout"></i>
             </button>
@@ -1790,6 +1826,32 @@ function App() {
             <p style=${{margin:"0 0 18px",fontSize:14,color:"var(--color-text-secondary)"}}>Du må logge inn igjen med e-post og passord.</p>
             <button onClick=${()=>{ setConfirmLogout(false); logout(); }} style=${{width:"100%",padding:"13px",fontSize:15,marginBottom:8,background:"#ff3b30",color:"#fff",border:"none"}}>Logg ut</button>
             <button onClick=${()=>setConfirmLogout(false)} style=${{width:"100%",padding:"12px",fontSize:14,color:"var(--color-text-secondary)"}}>Avbryt</button>
+          </div>
+        </div>`}
+      ${showHelp && html`
+        <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick=${()=>setShowHelp(false)}>
+          <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg) var(--border-radius-lg) 0 0",padding:"20px 22px 26px",maxWidth:480,width:"100%",maxHeight:"85vh",overflowY:"auto",boxSizing:"border-box"}}>
+            <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <p style=${{margin:0,fontSize:18,fontWeight:600}}>Hvordan appen fungerer</p>
+              <button onClick=${()=>setShowHelp(false)} style=${{background:"none",border:"none",fontSize:20,color:"var(--color-text-secondary)",cursor:"pointer",padding:4}}><i class="ti ti-x"></i></button>
+            </div>
+            ${[
+              ["ti-run","Program","12 uker med økter. Trykk på en uke, så på en økt for å se detaljer. Kryss av økter du har fullført og loggfør fart/puls."],
+              ["ti-player-play","Guidet økt","Åpne en økt og trykk «Start guidet økt». Har økten et intervall med et antall (f.eks. 5-10 x terskel), velger appen automatisk høyeste antall – trykk «Hopp» for å ta færre. Timeren teller ned hvert steg med lydsignal/stemme ved bytte."],
+              ["ti-lock","Lås skjerm","Under en guidet økt kan du trykke «Lås skjerm» for en lommesikker visning som ikke reagerer på tilfeldige trykk. Hold inne knappen nederst for å låse opp igjen."],
+              ["ti-volume","Stemme","Skru på stemme før du starter, så sier appen hva som kommer og teller ned de siste sekundene. Velger du en norsk stemme, må den kanskje lastes ned i telefonens innstillinger først."],
+              ["ti-chart-line","Statistikk","Viser utvikling i fart og puls over tid, hentet fra det du har loggført eller fra Strava."],
+              ["ti-brand-strava","Strava","Koble til Strava under Program-fanen for å hente fart og puls automatisk fra aktiviteten din i stedet for å taste inn selv."],
+              ["ti-moon","Tema og enhet","Månen øverst bytter mellom lyst/mørkt/system-tema. Knappen med km/t eller min/km bytter hvilken enhet fart vises i."],
+            ].map(([icon,title,text])=>html`
+              <div style=${{display:"flex",gap:12,marginBottom:16}}>
+                <i class=${`ti ${icon}`} style=${{fontSize:20,color:"#1D9E75",flexShrink:0,marginTop:2}}></i>
+                <div>
+                  <p style=${{margin:"0 0 3px",fontSize:14,fontWeight:600}}>${title}</p>
+                  <p style=${{margin:0,fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>${text}</p>
+                </div>
+              </div>`)}
+            <button onClick=${()=>setShowHelp(false)} class="btn-primary" style=${{width:"100%",padding:"13px",fontSize:15,marginTop:4}}>Lukk</button>
           </div>
         </div>`}
     </div>
