@@ -775,6 +775,31 @@ function hrZone(intensity, maxHR) {
   return { pct, bpm: [Math.round(pct[0]/100*maxHR), Math.round(pct[1]/100*maxHR)] };
 }
 
+// ─── FARTSKALKULATOR (fartsjustering for intervall-drag) ──────────────────────
+// Reverse-engineert og verifisert mot 100daymarathon.com/qr/fartskalkulator
+// (ren klient-side JS der, ingen backend/API – testet ~30 kombinasjoner for å
+// bekrefte brytningspunkt og avrunding). Jo lengre drag, jo mer konservativ fart
+// i forhold til grunnfarten (terskelfart). NB: siden sin egen tekst sier "4-5 min"
+// og "8-12 min", men de faktiske brytningspunktene i koden er 3:00 og 5:00.
+function paceAdjustPct(intervalSec) {
+  if (intervalSec <= 60) return [-1, 1];      // ±1 %, symmetrisk
+  if (intervalSec <= 180) return [1, 3];      // 1-3 % roligere
+  if (intervalSec <= 300) return [3, 6];      // 3-6 % roligere
+  return [6, 9];                               // 6-9 % roligere (tak, øker ikke videre)
+}
+// Returnerer { kmh:[lav,høy], pace:[lav,høy] (mm:ss) } eller null uten terskelfart/gyldig lengde
+function paceZone(intervalSec, thresholdKmh) {
+  if (!thresholdKmh || !intervalSec) return null;
+  const basePaceSec = 3600 / thresholdKmh;
+  const [pctLo, pctHi] = paceAdjustPct(intervalSec);
+  // Lavest %-justering gir raskest fart (kortest pace-tid) og omvendt
+  const paceFast = Math.round(basePaceSec * (1 + pctLo/100));
+  const paceSlow = Math.round(basePaceSec * (1 + pctHi/100));
+  const toStr = s => `${Math.floor(s/60)}:${pad(s%60)}`;
+  const toKmh = s => Math.round((3600/s)*10)/10;
+  return { pace: [toStr(paceFast), toStr(paceSlow)], kmh: [toKmh(paceSlow), toKmh(paceFast)] };
+}
+
 // Finn de to relevante fartene i en økt: rolig/restitusjon og arbeid/hardt
 function sessionPaces(session) {
   const easyC = [], workC = [];
@@ -971,8 +996,14 @@ function hrZoneText(intensity, maxHR) {
   const z = hrZone(intensity, maxHR);
   return z ? ` · ${z.bpm[0]}-${z.bpm[1]} slag/min` : "";
 }
+// Kort tekst med anbefalt fart-range for et intervall-drag – tom streng uten terskelfart
+function paceZoneText(intervalSec, thresholdKmh, unit) {
+  const z = paceZone(intervalSec, thresholdKmh);
+  if (!z) return "";
+  return unit === "pace" ? ` · ${z.pace[0]}-${z.pace[1]} /km` : ` · ${z.kmh[0]}-${z.kmh[1]} km/t`;
+}
 
-function SegmentList({ session, maxHR }) {
+function SegmentList({ session, maxHR, thresholdKmh, unit }) {
   return html`
     <div style=${{display:"flex",flexDirection:"column",gap:8}}>
       ${session.segments.map((seg,i) => {
@@ -983,7 +1014,7 @@ function SegmentList({ session, maxHR }) {
               <div>
                 <p style=${{margin:0,fontSize:14,fontWeight:500}}>${repText(seg)} × intervaller</p>
                 <p style=${{margin:"2px 0 0",fontSize:13,color:"var(--color-text-secondary)"}}>
-                  ${durText(seg.work.durationSec)} ${iLabel(seg.work.intensity)}${hrZoneText(seg.work.intensity,maxHR)} / ${durText(seg.rest.durationSec)} ${iLabel(seg.rest.intensity)}
+                  ${durText(seg.work.durationSec)} ${iLabel(seg.work.intensity)}${hrZoneText(seg.work.intensity,maxHR)}${paceZoneText(seg.work.durationSec,thresholdKmh,unit)} / ${durText(seg.rest.durationSec)} ${iLabel(seg.rest.intensity)}
                 </p>
               </div>
             </div>`;
@@ -1038,7 +1069,7 @@ function SpeedInput({ label, kmh, unit, onChange }) {
   `;
 }
 
-function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, onExit, onFinish }) {
+function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKmh, unit, onExit, onFinish }) {
   const steps = buildSteps(session, choices);
   const [idx, setIdx] = useState(0);
   const [rem, setRem] = useState(steps.length ? steps[0].sec : 0);
@@ -1159,6 +1190,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, onExit, onF
   const circ = Math.round(2*Math.PI*70);
   const col = iColor(step.intensity);
   const zone = hrZone(step.intensity, maxHR);
+  const pace = step.label.startsWith("Arbeid") ? paceZone(step.sec, thresholdKmh) : null;
   const totalSec = steps.reduce((a,x)=>a+x.sec,0);
   let elapsedSec = 0; for (let i=0;i<idx;i++) elapsedSec += steps[i].sec;
   elapsedSec += step.sec - rem;
@@ -1175,6 +1207,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, onExit, onF
           ${iLabel(step.intensity)}
         </div>
         ${zone && html`<p style=${{margin:"0 0 4px",fontSize:13,color:"var(--color-text-secondary)"}}><i class="ti ti-heartbeat"></i> ${zone.bpm[0]}-${zone.bpm[1]} slag/min · ${zone.pct[0]}-${zone.pct[1]}%</p>`}
+        ${pace && html`<p style=${{margin:"0 0 4px",fontSize:13,color:"var(--color-text-secondary)"}}><i class="ti ti-bolt"></i> ${unit==="pace" ? `${pace.pace[0]}-${pace.pace[1]} /km` : `${pace.kmh[0]}-${pace.kmh[1]} km/t`}</p>`}
         <p style=${{margin:"0 0 14px",fontSize:14,color:"var(--color-text-secondary)"}}>${step.label}</p>
       </div>
       <div style=${{position:"relative",width:160,height:160,margin:"0 auto 20px"}}>
@@ -1212,6 +1245,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, onExit, onF
           <div style=${{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center"}}>
             <div style=${{display:"inline-block",padding:"12px 34px",borderRadius:34,background:col,color:"#fff",fontSize:34,fontWeight:700,marginBottom:16}}>${iLabel(step.intensity)}</div>
             ${zone && html`<p style=${{margin:"0 0 10px",fontSize:18,color:"var(--color-text-secondary)"}}><i class="ti ti-heartbeat"></i> ${zone.bpm[0]}-${zone.bpm[1]} slag/min</p>`}
+            ${pace && html`<p style=${{margin:"0 0 10px",fontSize:18,color:"var(--color-text-secondary)"}}><i class="ti ti-bolt"></i> ${unit==="pace" ? `${pace.pace[0]}-${pace.pace[1]} /km` : `${pace.kmh[0]}-${pace.kmh[1]} km/t`}</p>`}
             <p style=${{margin:"0 0 16px",fontSize:28,fontWeight:600,color:"var(--color-text-secondary)"}}>${step.label}</p>
             <div style=${{fontSize:72,fontWeight:600,fontVariantNumeric:"tabular-nums",lineHeight:1}}>${m>0?`${m}:${pad(s)}`:s}</div>
           </div>
@@ -1300,7 +1334,7 @@ function GuidedConfig({ session, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onS
   `;
 }
 
-function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, setVoiceURI, stravaConnected, maxHR, onBack, onSave, onDelete }) {
+function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, setVoiceURI, stravaConnected, maxHR, thresholdKmh, onBack, onSave, onDelete }) {
   const rec = log[session.id] || {};
   const [mode, setMode] = useState("detail"); // detail | config | guided
   const [choices, setChoices] = useState(null);
@@ -1364,7 +1398,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
     onStart=${(c)=>{setChoices(c);setMode("guided");}} onCancel=${()=>setMode("detail")}/></div>`;
 
   if (mode === "guided") return html`<${GuidedSession} session=${session} choices=${choices}
-    voiceOn=${voiceOn} voiceURI=${voiceURI} maxHR=${maxHR}
+    voiceOn=${voiceOn} voiceURI=${voiceURI} maxHR=${maxHR} thresholdKmh=${thresholdKmh} unit=${unit}
     onExit=${()=>setMode("detail")} onFinish=${()=>{save(true);setMode("detail");}}/>`;
 
   return html`
@@ -1381,7 +1415,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
       <p style=${{margin:"0 0 16px",fontSize:14,color:"var(--color-text-secondary)"}}>${segmentSummary(session)} · ca. ${sessionMinutes(session)} min</p>
 
       <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:14}}>
-        <${SegmentList} session=${session} maxHR=${maxHR}/>
+        <${SegmentList} session=${session} maxHR=${maxHR} thresholdKmh=${thresholdKmh} unit=${unit}/>
       </div>
 
       <button onClick=${()=>setMode("config")} class="btn-blue" style=${{width:"100%",padding:"14px",fontSize:15,marginBottom:16}}>
@@ -1841,7 +1875,7 @@ function App() {
   if (!ready) body = html`<p style=${{color:"var(--color-text-secondary)",textAlign:"center",paddingTop:40}}>Laster...</p>`;
   else if (tab === "stats") body = html`<${StatsView} log=${log} unit=${unit}/>`;
   else if (view.name === "week") body = html`<${WeekView} key=${"w"+view.week} week=${weekObj(view.week)} log=${log} onBack=${()=>setView({name:"list"})} onOpen=${openSession}/>`;
-  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId)} week=${weekObj(view.week)} log=${log} unit=${unit} voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI} stravaConnected=${stravaConnected} maxHR=${maxHR} onBack=${()=>setView({name:"week",week:view.week})} onSave=${saveRec} onDelete=${deleteRec}/>`;
+  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId)} week=${weekObj(view.week)} log=${log} unit=${unit} voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI} stravaConnected=${stravaConnected} maxHR=${maxHR} thresholdKmh=${thresholdKmh} onBack=${()=>setView({name:"week",week:view.week})} onSave=${saveRec} onDelete=${deleteRec}/>`;
   else body = html`<${ProgramView} log=${log} onOpenWeek=${openWeek} onOpenSession=${openSession} stravaConnected=${stravaConnected} onConnectStrava=${connectStrava} onDisconnectStrava=${disconnectStrava}/>`;
 
   const title = tab==="stats" ? "Statistikk" : "Løpeprogram";
@@ -1905,6 +1939,7 @@ function App() {
               ["ti-chart-line","Statistikk","Viser utvikling i fart og puls over tid, hentet fra det du har loggført eller fra Strava."],
               ["ti-brand-strava","Strava","Koble til Strava under Program-fanen for å hente fart og puls automatisk fra aktiviteten din i stedet for å taste inn selv."],
               ["ti-heartbeat","Gylne sonen","Fyll inn terskelfart og makspuls under hjerte-ikonet, så viser hver økt hvilken puls du bør ligge på for intensiteten (f.eks. terskel = 80-87% av makspuls, boken kaller det «den gylne sonen»)."],
+              ["ti-bolt","Fartskalkulator","Intervall-drag viser også en anbefalt fart-range, regnet ut fra terskelfarten din og draglengden – jo lengre drag, jo roligere fart."],
               ["ti-moon","Tema og enhet","Månen øverst bytter mellom lyst/mørkt/system-tema. Knappen med km/t eller min/km bytter hvilken enhet fart vises i."],
             ].map(([icon,title,text])=>html`
               <div style=${{display:"flex",gap:12,marginBottom:16}}>
