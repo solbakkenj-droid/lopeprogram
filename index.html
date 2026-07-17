@@ -130,6 +130,16 @@ async function removeSession(id) {
   await db.from("lop_sessions").delete().eq("session_id", id);
 }
 
+// ─── PROFIL (terskelfart + makspuls, brukes til «gylne sonen») ────────────────
+async function loadProfile() {
+  const { data } = await db.from("lop_profile").select("*").maybeSingle();
+  return data || {};
+}
+async function saveProfile(row) {
+  const { data: { user } } = await db.auth.getUser();
+  await db.from("lop_profile").upsert({ ...row, user_id: user ? user.id : null }, { onConflict: "user_id" });
+}
+
 // ─── WAKE LOCK FALLBACK (silent video, for eldre iOS uten Wake Lock API) ──────
 const NOSLEEP_VIDEO_SRC = "data:video/mp4;base64,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";
 
@@ -740,6 +750,31 @@ const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 const IRANK = { hvile:0, pause:0, gange:1, rask_gange:2, lett_jogg_gange:2, svart_lett_jogg:3, rolig_lop:4, lett_jogg:4, jogg:5, litt_raskere:6, rask_jogg:6, terskel:7, test:8 };
 const irank = k => (IRANK[k] ?? 4);
 
+// ─── GYLNE SONEN (% av makspuls) ───────────────────────────────────────────────
+// Terskel (80-87%) er hentet direkte fra boken («Den gylne sonen»). De andre er
+// interpolert mellom bokens ankerpunkter (60% lett / 70% rolig / 80% terskel start
+// / 100% maks) ut fra intensitetsrekkefølgen appen allerede bruker (IRANK).
+const HR_ZONES = {
+  gange:            [55,62],
+  rask_gange:       [60,65],
+  lett_jogg_gange:  [60,65],
+  svart_lett_jogg:  [62,67],
+  rolig_lop:        [67,72],
+  lett_jogg:        [67,72],
+  jogg:             [72,77],
+  litt_raskere:     [75,80],
+  rask_jogg:        [75,80],
+  terskel:          [80,87],
+  test:             [90,100],
+};
+// Returnerer { pct:[min,max], bpm:[min,max] } eller null (f.eks. for pause/hvile,
+// eller hvis makspuls ikke er fylt inn ennå)
+function hrZone(intensity, maxHR) {
+  const pct = HR_ZONES[intensity];
+  if (!pct || !maxHR) return null;
+  return { pct, bpm: [Math.round(pct[0]/100*maxHR), Math.round(pct[1]/100*maxHR)] };
+}
+
 // Finn de to relevante fartene i en økt: rolig/restitusjon og arbeid/hardt
 function sessionPaces(session) {
   const easyC = [], workC = [];
@@ -931,7 +966,13 @@ function buildSteps(session, choices) {
 
 // ─── KOMPONENTER ──────────────────────────────────────────────────────────────
 
-function SegmentList({ session }) {
+// Kort tekst med puls-mål, f.eks. " · 158-165 slag/min" – tom streng uten makspuls
+function hrZoneText(intensity, maxHR) {
+  const z = hrZone(intensity, maxHR);
+  return z ? ` · ${z.bpm[0]}-${z.bpm[1]} slag/min` : "";
+}
+
+function SegmentList({ session, maxHR }) {
   return html`
     <div style=${{display:"flex",flexDirection:"column",gap:8}}>
       ${session.segments.map((seg,i) => {
@@ -942,7 +983,7 @@ function SegmentList({ session }) {
               <div>
                 <p style=${{margin:0,fontSize:14,fontWeight:500}}>${repText(seg)} × intervaller</p>
                 <p style=${{margin:"2px 0 0",fontSize:13,color:"var(--color-text-secondary)"}}>
-                  ${durText(seg.work.durationSec)} ${iLabel(seg.work.intensity)} / ${durText(seg.rest.durationSec)} ${iLabel(seg.rest.intensity)}
+                  ${durText(seg.work.durationSec)} ${iLabel(seg.work.intensity)}${hrZoneText(seg.work.intensity,maxHR)} / ${durText(seg.rest.durationSec)} ${iLabel(seg.rest.intensity)}
                 </p>
               </div>
             </div>`;
@@ -956,7 +997,7 @@ function SegmentList({ session }) {
             <div>
               <p style=${{margin:0,fontSize:14,fontWeight:500}}>${title}${dur?` · ${dur}`:""}</p>
               <p style=${{margin:"2px 0 0",fontSize:13,color:"var(--color-text-secondary)"}}>
-                ${isTest ? seg.note : `${iLabel(seg.intensity)}${seg.orRest?" eller hvile":""}${seg.note&&seg.note!==dur?"":""}`}
+                ${isTest ? seg.note : `${iLabel(seg.intensity)}${seg.orRest?" eller hvile":""}${seg.note&&seg.note!==dur?"":""}`}${hrZoneText(seg.intensity,maxHR)}
               </p>
             </div>
           </div>`;
@@ -997,7 +1038,7 @@ function SpeedInput({ label, kmh, unit, onChange }) {
   `;
 }
 
-function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }) {
+function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, onExit, onFinish }) {
   const steps = buildSteps(session, choices);
   const [idx, setIdx] = useState(0);
   const [rem, setRem] = useState(steps.length ? steps[0].sec : 0);
@@ -1117,6 +1158,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
   const pct = step.sec ? Math.round(((step.sec-rem)/step.sec)*100) : 0;
   const circ = Math.round(2*Math.PI*70);
   const col = iColor(step.intensity);
+  const zone = hrZone(step.intensity, maxHR);
   const totalSec = steps.reduce((a,x)=>a+x.sec,0);
   let elapsedSec = 0; for (let i=0;i<idx;i++) elapsedSec += steps[i].sec;
   elapsedSec += step.sec - rem;
@@ -1132,6 +1174,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
         <div style=${{display:"inline-block",padding:"4px 14px",borderRadius:20,background:col,color:"#fff",fontSize:14,fontWeight:600,marginBottom:6}}>
           ${iLabel(step.intensity)}
         </div>
+        ${zone && html`<p style=${{margin:"0 0 4px",fontSize:13,color:"var(--color-text-secondary)"}}><i class="ti ti-heartbeat"></i> ${zone.bpm[0]}-${zone.bpm[1]} slag/min · ${zone.pct[0]}-${zone.pct[1]}%</p>`}
         <p style=${{margin:"0 0 14px",fontSize:14,color:"var(--color-text-secondary)"}}>${step.label}</p>
       </div>
       <div style=${{position:"relative",width:160,height:160,margin:"0 auto 20px"}}>
@@ -1168,6 +1211,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, onExit, onFinish }
           <p style=${{textAlign:"center",margin:0,fontSize:17,fontWeight:500,color:"var(--color-text-secondary)"}}>Steg ${idx+1} / ${steps.length} · ${overallPct}%</p>
           <div style=${{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center"}}>
             <div style=${{display:"inline-block",padding:"12px 34px",borderRadius:34,background:col,color:"#fff",fontSize:34,fontWeight:700,marginBottom:16}}>${iLabel(step.intensity)}</div>
+            ${zone && html`<p style=${{margin:"0 0 10px",fontSize:18,color:"var(--color-text-secondary)"}}><i class="ti ti-heartbeat"></i> ${zone.bpm[0]}-${zone.bpm[1]} slag/min</p>`}
             <p style=${{margin:"0 0 16px",fontSize:28,fontWeight:600,color:"var(--color-text-secondary)"}}>${step.label}</p>
             <div style=${{fontSize:72,fontWeight:600,fontVariantNumeric:"tabular-nums",lineHeight:1}}>${m>0?`${m}:${pad(s)}`:s}</div>
           </div>
@@ -1256,7 +1300,7 @@ function GuidedConfig({ session, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onS
   `;
 }
 
-function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, setVoiceURI, stravaConnected, onBack, onSave, onDelete }) {
+function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, setVoiceURI, stravaConnected, maxHR, onBack, onSave, onDelete }) {
   const rec = log[session.id] || {};
   const [mode, setMode] = useState("detail"); // detail | config | guided
   const [choices, setChoices] = useState(null);
@@ -1320,7 +1364,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
     onStart=${(c)=>{setChoices(c);setMode("guided");}} onCancel=${()=>setMode("detail")}/></div>`;
 
   if (mode === "guided") return html`<${GuidedSession} session=${session} choices=${choices}
-    voiceOn=${voiceOn} voiceURI=${voiceURI}
+    voiceOn=${voiceOn} voiceURI=${voiceURI} maxHR=${maxHR}
     onExit=${()=>setMode("detail")} onFinish=${()=>{save(true);setMode("detail");}}/>`;
 
   return html`
@@ -1337,7 +1381,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
       <p style=${{margin:"0 0 16px",fontSize:14,color:"var(--color-text-secondary)"}}>${segmentSummary(session)} · ca. ${sessionMinutes(session)} min</p>
 
       <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:14}}>
-        <${SegmentList} session=${session}/>
+        <${SegmentList} session=${session} maxHR=${maxHR}/>
       </div>
 
       <button onClick=${()=>setMode("config")} class="btn-blue" style=${{width:"100%",padding:"14px",fontSize:15,marginBottom:16}}>
@@ -1726,6 +1770,11 @@ function App() {
   const setVoiceURI = (v) => { setVoiceURIState(v); localStorage.setItem("voiceURI", v || ""); };
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [thresholdKmh, setThresholdKmh] = useState(null);
+  const [maxHR, setMaxHR] = useState(null);
+  const [pThr, setPThr] = useState(null);
+  const [pMaxHR, setPMaxHR] = useState(null);
   const [stravaConnected, setStravaConnected] = useState(false);
 
   useEffect(() => {
@@ -1746,13 +1795,23 @@ function App() {
   useEffect(()=>{ if(session){ (async()=>{
     setLog(await loadLog()); setReady(true);
     try {
+      const p = await loadProfile();
+      setThresholdKmh(p.threshold_kmh ?? null);
+      setMaxHR(p.max_hr ?? null);
+    } catch {}
+    try {
       const code = new URLSearchParams(location.search).get("code");
       if (code) { await stravaCall({ action:"exchange", code }); history.replaceState({}, "", location.pathname); }
       const st = await stravaCall({ action:"status" });
       setStravaConnected(!!(st && st.connected));
     } catch {}
   })(); } },[session]);
-  const logout = async ()=>{ await db.auth.signOut(); setLog({}); setReady(false); setView({name:"list"}); setTab("program"); setStravaConnected(false); };
+  const saveProfileFields = async (patch) => {
+    const next = { threshold_kmh: patch.threshold_kmh !== undefined ? patch.threshold_kmh : thresholdKmh, max_hr: patch.max_hr !== undefined ? patch.max_hr : maxHR };
+    setThresholdKmh(next.threshold_kmh); setMaxHR(next.max_hr);
+    setSyncing(true); await saveProfile(next); setSyncing(false);
+  };
+  const logout = async ()=>{ await db.auth.signOut(); setLog({}); setReady(false); setView({name:"list"}); setTab("program"); setStravaConnected(false); setThresholdKmh(null); setMaxHR(null); };
   const connectStrava = () => {
     const redirect = location.origin + location.pathname;
     location.href = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirect)}&response_type=code&approval_prompt=auto&scope=activity:read_all`;
@@ -1782,7 +1841,7 @@ function App() {
   if (!ready) body = html`<p style=${{color:"var(--color-text-secondary)",textAlign:"center",paddingTop:40}}>Laster...</p>`;
   else if (tab === "stats") body = html`<${StatsView} log=${log} unit=${unit}/>`;
   else if (view.name === "week") body = html`<${WeekView} key=${"w"+view.week} week=${weekObj(view.week)} log=${log} onBack=${()=>setView({name:"list"})} onOpen=${openSession}/>`;
-  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId)} week=${weekObj(view.week)} log=${log} unit=${unit} voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI} stravaConnected=${stravaConnected} onBack=${()=>setView({name:"week",week:view.week})} onSave=${saveRec} onDelete=${deleteRec}/>`;
+  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId)} week=${weekObj(view.week)} log=${log} unit=${unit} voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI} stravaConnected=${stravaConnected} maxHR=${maxHR} onBack=${()=>setView({name:"week",week:view.week})} onSave=${saveRec} onDelete=${deleteRec}/>`;
   else body = html`<${ProgramView} log=${log} onOpenWeek=${openWeek} onOpenSession=${openSession} stravaConnected=${stravaConnected} onConnectStrava=${connectStrava} onDisconnectStrava=${disconnectStrava}/>`;
 
   const title = tab==="stats" ? "Statistikk" : "Løpeprogram";
@@ -1799,6 +1858,9 @@ function App() {
             </button>
             <button onClick=${toggleDark} style=${{background:"none",border:"none",padding:"4px 6px",fontSize:18,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1}} title="Bytt tema">
               ${darkMode==="dark"?"☀️":darkMode==="light"?"🌓":"🌙"}
+            </button>
+            <button onClick=${()=>{ setPThr(thresholdKmh); setPMaxHR(maxHR); setShowProfile(true); }} style=${{background:"none",border:"none",padding:"4px 6px",fontSize:16,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1}} title="Terskelfart og makspuls">
+              <i class="ti ti-heartbeat"></i>
             </button>
             <button onClick=${()=>setShowHelp(true)} style=${{background:"none",border:"1px solid var(--color-border-secondary)",borderRadius:"50%",width:26,height:26,padding:0,fontSize:13,fontWeight:600,cursor:"pointer",color:"var(--color-text-secondary)",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}} title="Hvordan fungerer appen?">
               ?
@@ -1842,6 +1904,7 @@ function App() {
               ["ti-volume","Stemme","Skru på stemme før du starter, så sier appen hva som kommer og teller ned de siste sekundene. Velger du en norsk stemme, må den kanskje lastes ned i telefonens innstillinger først."],
               ["ti-chart-line","Statistikk","Viser utvikling i fart og puls over tid, hentet fra det du har loggført eller fra Strava."],
               ["ti-brand-strava","Strava","Koble til Strava under Program-fanen for å hente fart og puls automatisk fra aktiviteten din i stedet for å taste inn selv."],
+              ["ti-heartbeat","Gylne sonen","Fyll inn terskelfart og makspuls under hjerte-ikonet, så viser hver økt hvilken puls du bør ligge på for intensiteten (f.eks. terskel = 80-87% av makspuls, boken kaller det «den gylne sonen»)."],
               ["ti-moon","Tema og enhet","Månen øverst bytter mellom lyst/mørkt/system-tema. Knappen med km/t eller min/km bytter hvilken enhet fart vises i."],
             ].map(([icon,title,text])=>html`
               <div style=${{display:"flex",gap:12,marginBottom:16}}>
@@ -1852,6 +1915,25 @@ function App() {
                 </div>
               </div>`)}
             <button onClick=${()=>setShowHelp(false)} class="btn-primary" style=${{width:"100%",padding:"13px",fontSize:15,marginTop:4}}>Lukk</button>
+          </div>
+        </div>`}
+      ${showProfile && html`
+        <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick=${()=>setShowProfile(false)}>
+          <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",padding:"22px",maxWidth:360,width:"100%"}}>
+            <p style=${{margin:"0 0 4px",fontSize:18,fontWeight:600}}><i class="ti ti-heartbeat"></i> Terskelfart og makspuls</p>
+            <p style=${{margin:"0 0 18px",fontSize:13,color:"var(--color-text-secondary)"}}>Brukes til å regne ut «den gylne sonen» – hvilken puls du bør ligge på i hver økt (80-87% av makspuls for terskeløkter).</p>
+            <div style=${{marginBottom:14}}>
+              <${SpeedInput} label="Terskelfart" kmh=${pThr} unit=${unit} onChange=${setPThr}/>
+            </div>
+            <div style=${{marginBottom:18}}>
+              <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Makspuls</label>
+              <input type="number" inputmode="numeric" step="1" value=${pMaxHR ?? ""} placeholder="slag/min"
+                onInput=${e=>setPMaxHR(e.target.value ? parseInt(e.target.value,10) : null)}
+                style=${{width:"100%",boxSizing:"border-box"}}/>
+              <span style=${{fontSize:11,color:"var(--color-text-tertiary)"}}>slag/min</span>
+            </div>
+            <button onClick=${async()=>{ await saveProfileFields({ threshold_kmh: pThr, max_hr: pMaxHR }); setShowProfile(false); }} class="btn-primary" style=${{width:"100%",padding:"13px",fontSize:15,marginBottom:8}}>Lagre</button>
+            <button onClick=${()=>setShowProfile(false)} style=${{width:"100%",padding:"12px",fontSize:14,color:"var(--color-text-secondary)"}}>Avbryt</button>
           </div>
         </div>`}
     </div>
