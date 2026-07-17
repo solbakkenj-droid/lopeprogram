@@ -162,8 +162,12 @@ function splitStrava(velocity, heartrate) {
     if (Math.abs(v-slowC) <= Math.abs(v-fastC)) { sK.push(v); if (hr) sH.push(hr); }
     else { fK.push(v); if (hr) fH.push(hr); }
   }
+  // "Jevn fart": kutt opp-/nedbremsing ved å ta et persentil mot platået
+  // (rask gruppe → høyt persentil = jevn løpefart; rolig gruppe → lavt persentil = jevn gå-fart)
+  const pct = (arr, p) => { const s=[...arr].sort((a,b)=>a-b); return s.length ? s[Math.min(s.length-1, Math.max(0, Math.round(p*(s.length-1))))] : null; };
   return {
-    easy_kmh: round2(median(sK)), work_kmh: round2(median(fK)),
+    easy_kmh: round2(pct(sK, 0.25)),
+    work_kmh: round2(pct(fK, 0.75)),
     easy_hr: sH.length ? Math.round(median(sH)) : null,
     work_hr: fH.length ? Math.round(median(fH)) : null,
   };
@@ -702,7 +706,8 @@ const PROGRAM = {
       ]
     }
   ]
-};
+}
+;
 
 // ─── INTENSITET ───────────────────────────────────────────────────────────────
 const INTENSITY = {
