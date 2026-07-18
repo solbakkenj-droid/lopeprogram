@@ -140,6 +140,37 @@ async function saveProfile(row) {
   await db.from("lop_profile").upsert({ ...row, user_id: user ? user.id : null }, { onConflict: "user_id" });
 }
 
+// ─── EGNE PROGRAMMER + DAGSFORM (v2-schema.sql) ───────────────────────────────
+async function loadPrograms() {
+  try { const { data } = await db.from("lop_programs").select("*").order("created_at", { ascending: false }); return data || []; }
+  catch { return []; }
+}
+async function insertProgram(row) {
+  const { data: { user } } = await db.auth.getUser();
+  await db.from("lop_programs").update({ active: false }).eq("active", true);
+  const { error } = await db.from("lop_programs").insert({ ...row, user_id: user ? user.id : null });
+  return error || null;
+}
+async function deleteProgramRow(id) { await db.from("lop_programs").delete().eq("id", id); }
+async function loadTodayReadiness() {
+  try { const { data } = await db.from("lop_readiness").select("*").eq("day", todayKey()).maybeSingle(); return data || null; }
+  catch { return null; }
+}
+async function saveReadiness(row) {
+  const { data: { user } } = await db.auth.getUser();
+  await db.from("lop_readiness").upsert({ ...row, user_id: user ? user.id : null }, { onConflict: "user_id,day" });
+}
+
+// ─── WHOOP (Edge Function «whoop», speiler Strava-mønsteret) ──────────────────
+async function whoopCall(body) {
+  const { data, error } = await db.functions.invoke("whoop", { body });
+  if (error && error.context && typeof error.context.json === "function") {
+    try { return await error.context.json(); } catch {}
+  }
+  if (error) return { error: error.message || "Feil" };
+  return data;
+}
+
 // ─── WAKE LOCK FALLBACK (silent video, for eldre iOS uten Wake Lock API) ──────
 const NOSLEEP_VIDEO_SRC = "data:video/mp4;base64,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";
 
@@ -741,13 +772,14 @@ const INTENSITY = {
   pause:            { label: "pause",             color: "#8e8e93", hard: false },
   hvile:            { label: "hvile",             color: "#8e8e93", hard: false },
   test:             { label: "test",              color: "#af52de", hard: true  },
+  styrke:           { label: "styrke",            color: "#af52de", hard: true  },
 };
 const iLabel = k => (INTENSITY[k] || { label: k }).label;
 const iColor = k => (INTENSITY[k] || { color: "#8e8e93" }).color;
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
 // Rangering av intensitet (lav = rolig, høy = hardt) – brukes til å velge fart-felt
-const IRANK = { hvile:0, pause:0, gange:1, rask_gange:2, lett_jogg_gange:2, svart_lett_jogg:3, rolig_lop:4, lett_jogg:4, jogg:5, litt_raskere:6, rask_jogg:6, terskel:7, test:8 };
+const IRANK = { hvile:0, pause:0, gange:1, rask_gange:2, lett_jogg_gange:2, svart_lett_jogg:3, rolig_lop:4, lett_jogg:4, jogg:5, litt_raskere:6, rask_jogg:6, styrke:6, terskel:7, test:8 };
 const irank = k => (IRANK[k] ?? 4);
 
 // ─── GYLNE SONEN (% av makspuls) ───────────────────────────────────────────────
@@ -821,6 +853,336 @@ function sessionPaces(session) {
   return { easy, work };
 }
 
+// ─── BOKAS TEMPOGUIDE (sek/km, for genererte program – erstatter %-kalkulatoren) ─
+// 45 sek-1 min: 5-7 sek/km RASKERE enn terskel · 4-5 min: = terskelfart ·
+// 6-8 min: 5-7 sek/km saktere · 10-15 min: 7-10 sek/km saktere.
+// Mellom ankerpunktene: lineær interpolasjon, rundet til nærmeste 1 sek/km.
+// Under 45 sek: 45 sek-verdien. Over 15 min: 10-15 min-verdien (tak).
+const PACE_GUIDE = [            // [fraSec, tilSec, [justLo, justHi]] – negativ = raskere
+  [45, 60, [-7, -5]],
+  [240, 300, [0, 0]],
+  [360, 480, [5, 7]],
+  [600, 900, [7, 10]],
+];
+function paceGuideAdj(sec) {
+  const first = PACE_GUIDE[0], last = PACE_GUIDE[PACE_GUIDE.length-1];
+  if (sec <= first[1]) return first[2];
+  if (sec >= last[0]) return last[2];
+  for (let i=0; i<PACE_GUIDE.length-1; i++) {
+    const a = PACE_GUIDE[i], b = PACE_GUIDE[i+1];
+    if (sec >= a[0] && sec <= a[1]) return a[2];
+    if (sec > a[1] && sec < b[0]) {
+      const t = (sec - a[1]) / (b[0] - a[1]);
+      return [Math.round(a[2][0] + t*(b[2][0]-a[2][0])), Math.round(a[2][1] + t*(b[2][1]-a[2][1]))];
+    }
+  }
+  return last[2];
+}
+// Målfart for et drag: [rask, sakte] i sek/km – lagres i segmentet ved generering
+function guidePaceSec(intervalSec, thresholdKmh) {
+  if (!thresholdKmh || !intervalSec) return null;
+  const base = Math.round(3600 / thresholdKmh);
+  const [lo, hi] = paceGuideAdj(intervalSec);
+  return [base + lo, base + hi];
+}
+// [rask, sakte] sek/km → samme form som paceZone (for visning)
+function paceFromSec(secArr) {
+  const toStr = s => `${Math.floor(s/60)}:${pad(s%60)}`;
+  const toKmh = s => Math.round((3600/s)*10)/10;
+  return { pace: [toStr(secArr[0]), toStr(secArr[1])], kmh: [toKmh(secArr[1]), toKmh(secArr[0])] };
+}
+// Fart for et arbeidsdrag: lagret målfart (genererte program) foran %-kalkulatoren
+function workPaceZone(workSeg, thresholdKmh) {
+  if (workSeg && workSeg.paceSec) return paceFromSec(workSeg.paceSec);
+  return workSeg ? paceZone(workSeg.durationSec, thresholdKmh) : null;
+}
+
+// ─── STYRKE (kap. 11 + Running Rewired som anker, Myrtl som oppvarming) ───────
+// Evidensbaserte grunnøvelser, kroppsvekt-først, 20-30 min. IKKE kopi av bokas økter.
+const STRENGTH_EXERCISES = [
+  { name: "Eksentriske tåhev – rett kne", workSec: 40, restSec: 20, sets: 2 },
+  { name: "Eksentriske tåhev – bøyd kne", workSec: 40, restSec: 20, sets: 2 },
+  { name: "Enbens markløft",              workSec: 40, restSec: 20, sets: 2 },
+  { name: "Bulgarsk utfall",              workSec: 40, restSec: 20, sets: 2 },
+  { name: "Nordic hamstring",             workSec: 30, restSec: 30, sets: 2 },
+  { name: "Hofteløft",                    workSec: 40, restSec: 20, sets: 2 },
+  { name: "Sideplanke",                   workSec: 40, restSec: 20, sets: 2 },
+  { name: "Copenhagen adduksjon",         workSec: 30, restSec: 30, sets: 2 },
+];
+function strengthSession(id, plannedDay, plannedDate) {
+  return {
+    id, plannedDay, plannedDate, optional: false, type: "strength",
+    segments: [
+      { kind: "strength_ex", name: "Myrtl-rutine (hofte/sete-oppvarming)", workSec: 360, restSec: 0, sets: 1 },
+      ...STRENGTH_EXERCISES.map(e => ({ kind: "strength_ex", ...e })),
+    ],
+  };
+}
+// Betinget anbefaling (kap. 11): styrke er ikke default-på for alle
+function recommendStrength(birthYear, injuryHistory) {
+  const age = birthYear ? new Date().getFullYear() - birthYear : null;
+  if ((age != null && age >= 50) || injuryHistory === "mange") return 2;
+  if ((age != null && age >= 40) || injuryHistory === "noen") return 1;
+  return 0;
+}
+
+// ─── PROGRAMBYGGER: generator ─────────────────────────────────────────────────
+const GOAL_META = {
+  "5k":       { label: "5 km",         race: true,  longRun: [60, 90],  longCap: [60, 90],   taper: 2 },
+  "10k":      { label: "10 km",        race: true,  longRun: [60, 90],  longCap: [60, 90],   taper: 2 },
+  "halv":     { label: "Halvmaraton",  race: true,  longRun: [60, 75],  longCap: [90, 130],  taper: 3 },
+  "maraton":  { label: "Maraton",      race: true,  longRun: [60, 75],  longCap: [100, 170], taper: 4 },
+  "form":     { label: "Holde form",   race: false, longRun: [60, 90],  longCap: [60, 90],   taper: 0 },
+  "sterkere": { label: "Bli sterkere", race: false, longRun: [50, 70],  longCap: [50, 70],   taper: 0 },
+};
+const DAY_OFFSET = { "Mandag":0, "Tirsdag":1, "Onsdag":2, "Torsdag":3, "Fredag":4, "Lørdag":5, "Søndag":6 };
+function addDays(d, n) { const x = new Date(d.getTime()); x.setDate(x.getDate()+n); return x; }
+function dateKey(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function nextMonday() {
+  const t = new Date(); t.setHours(12,0,0,0);
+  const dow = (t.getDay()+6)%7; // 0 = mandag
+  return dow === 0 ? t : addDays(t, 7-dow);
+}
+function weekMondayKey(dateStr) { const d = parseKey(dateStr); return dateKey(addDays(d, -((d.getDay()+6)%7))); }
+
+// Ukestruktur etter økter/uke (del 3.3): tre nøkkeløkter er grunnmuren, resten rolig påfyll
+function weekLayout(rpw, useX) {
+  if (rpw <= 3) return [["Tirsdag","rolig"],["Torsdag","hoved"],["Søndag","lang"]];
+  if (rpw === 4) return [["Tirsdag","stotte"],["Onsdag","rolig"],["Torsdag","hoved"],["Søndag","lang"]];
+  if (rpw === 5) return useX
+    ? [["Tirsdag","stotte"],["Onsdag","rolig"],["Torsdag","hoved"],["Lørdag","x"],["Søndag","lang"]]
+    : [["Tirsdag","stotte"],["Onsdag","rolig"],["Torsdag","hoved"],["Lørdag","rolig"],["Søndag","lang"]];
+  return [["Mandag","rolig"],["Tirsdag","stotte"],["Onsdag","rolig"],["Torsdag","hoved"],["Lørdag","x"],["Søndag","lang"]];
+}
+// Volumfaktor (del 3.6): ~10 %/uke oppbygging (maks 6 uker), blokk-lettuke −35 %, taper mot løpsdag
+function volFactor(i, n, taper, light) {
+  let f = Math.min(1 + 0.10 * Math.min(i, 6), 1.5);
+  if (light) f *= 0.65;
+  if (taper) {
+    const fac = { 2:[0.75,0.6], 3:[0.8,0.7,0.55], 4:[0.85,0.75,0.65,0.55] }[taper];
+    const idx = i - (n - taper);
+    if (fac && idx >= 0 && idx < fac.length) f *= fac[idx];
+  }
+  return f;
+}
+// Styrke-plassering (del 6.4): ved en allerede hard dag, aldri hviledag. C = etter X (default)
+function strengthPlacementDays(layout, placement, perWeek) {
+  if (!perWeek) return [];
+  const dayOf = kind => { const e = layout.find(x => x[1] === kind); return e ? e[0] : null; };
+  const hoved = dayOf("hoved"), stotte = dayOf("stotte"), x = dayOf("x");
+  let first;
+  if (placement === "A") first = hoved;
+  else if (placement === "B") { // dagen før terskeldag – bruk støttedagen hvis den er dagen før, ellers hoveddagen
+    first = stotte && hoved && (DAY_OFFSET[hoved] - DAY_OFFSET[stotte] === 1) ? stotte : hoved;
+  } else first = x || hoved; // C: etter X-økt, fallback hoveddag når X ikke finnes
+  const days = [first];
+  if (perWeek >= 2) {
+    const second = [stotte, hoved, x].find(d => d && d !== first);
+    if (second) days.push(second);
+  }
+  return days.filter(Boolean);
+}
+function buildRunSession(id, day, plannedDate, kind, ctx) {
+  const { thr, f, i, n, meta, periodization, taper } = ctx;
+  const rmin = (m, fac) => Math.max(20, Math.round(m*(fac ?? f)/5)*5); // minutter → skalert, rundet til 5
+  const seg = [];
+  if (kind === "rolig") {
+    seg.push({ kind: "continuous", intensity: "rolig_lop", durationRangeSec: [rmin(40)*60, rmin(55)*60], note: "så rolig at det nesten føles feil" });
+  } else if (kind === "lang") {
+    // Distansespesifikk langtur: kortdistanse 60-90 min, halv/maraton trappes progressivt mot longCap
+    const t = n > 1 ? Math.min(1, i / Math.max(1, n - 1 - taper)) : 1;
+    const lo = Math.round(meta.longRun[0] + t*(meta.longCap[0]-meta.longRun[0]));
+    const hi = Math.round(meta.longRun[1] + t*(meta.longCap[1]-meta.longRun[1]));
+    const fL = Math.min(f, 1.25); // langturen skaleres mildere enn de korte rolige
+    seg.push({ kind: "continuous", intensity: "rolig_lop", durationRangeSec: [rmin(lo, fL)*60, rmin(hi, fL)*60], note: "langtur" });
+  } else if (kind === "hoved") {
+    // Hovedkvalitet: lange terskeldrag, maks 1×/uke
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
+    seg.push({ kind: "intervals", repeatsRange: [3,4], work: { intensity: "terskel", durationSec: 600, paceSec: guidePaceSec(600, thr) }, rest: { intensity: "lett_jogg", durationSec: 120 } });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
+  } else if (kind === "stotte") {
+    // Støttekvalitet: kortere drag (≤ 3 min) med 1 min pause
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
+    seg.push({ kind: "intervals", repeatsRange: [10,12], work: { intensity: "terskel", durationSec: 180, paceSec: guidePaceSec(180, thr) }, rest: { intensity: "lett_jogg_gange", durationSec: 60 } });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
+  } else if (kind === "x") {
+    // X-økt 45/15: første som ryker ved rødt lys. Spisses mot måldato ved progressiv X
+    const prog = periodization === "progressiv_x" ? i / Math.max(1, n-1) : 0;
+    const reps = [Math.round(15 + prog*3), Math.round(18 + prog*2)];
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
+    seg.push({ kind: "intervals", repeatsRange: reps, work: { intensity: "rask_jogg", durationSec: 45, paceSec: guidePaceSec(45, thr) }, rest: { intensity: "pause", durationSec: 15 }, note: "start i 10 km-fart, øk gradvis mot 5 km-fart" });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
+  }
+  return { id, plannedDay: day, plannedDate, optional: false, segments: seg };
+}
+// Ukens intensitetsfordeling (for info-linjen og 80/20-innsyn). Snitt av ranges.
+function weekDistribution(sessions) {
+  let easy = 0, thrS = 0, hard = 0;
+  sessions.forEach(s => {
+    if (s.type === "strength") return;
+    s.segments.forEach(seg => {
+      const add = (int, sec) => { if (int === "terskel") thrS += sec; else if (INTENSITY[int] && INTENSITY[int].hard) hard += sec; else easy += sec; };
+      if (seg.kind === "intervals") {
+        const nrep = seg.repeatsRange ? (seg.repeatsRange[0]+seg.repeatsRange[1])/2 : seg.repeats;
+        add(seg.work.intensity, nrep*seg.work.durationSec); add(seg.rest.intensity, nrep*seg.rest.durationSec);
+      } else if (seg.durationRangeSec) add(seg.intensity, (seg.durationRangeSec[0]+seg.durationRangeSec[1])/2);
+      else if (seg.durationSec) add(seg.intensity, seg.durationSec);
+    });
+  });
+  const total = easy + thrS + hard;
+  const p = v => total ? Math.round(v/total*100) : 0;
+  return { total, easyPct: p(easy), thrPct: p(thrS), hardPct: p(hard) };
+}
+function weekPhase(i, n, taper, light, periodization) {
+  if (taper && i >= n - taper) return "Nedtrapping";
+  if (light) return "Lett uke";
+  if (i < Math.ceil(n*0.4)) return "Oppbygging";
+  return periodization === "progressiv_x" ? "Spissing" : "Utvikling";
+}
+function weekTitle(i, n, taper, light) {
+  if (taper && i >= n - taper) return i === n-1 ? "Løpsuke – lett og kvikk" : "Nedtrapping – mindre volum, behold litt intensitet";
+  if (light) return "Lett uke – hent deg inn (−35 % volum)";
+  if (i === 0) return "Første uke – etabler rytmen";
+  return "Bygg videre – rolig volum opp, nøkkeløktene står";
+}
+// Hovedgeneratoren: produserer uker i NØYAKTIG samme format som PROGRAM.weeks
+function generateProgram(o, pid) {
+  const meta = GOAL_META[o.goal];
+  const thr = o.thresholdKmh || null;
+  const start = nextMonday();
+  const goalDate = o.goalDate ? parseKey(o.goalDate) : null;
+  const n = goalDate
+    ? Math.max(4, Math.round((goalDate.getTime() - start.getTime()) / (7*86400000)))
+    : Math.max(4, Math.min(24, o.weeksCount || 8));
+  const useX = o.runsPerWeek >= 6 || (o.runsPerWeek === 5 && o.periodization === "progressiv_x");
+  const layout = weekLayout(o.runsPerWeek, useX);
+  const taper = meta.race && goalDate ? Math.min(meta.taper, Math.max(0, n-2)) : 0;
+  const weeks = [];
+  for (let i=0; i<n; i++) {
+    const light = o.periodization === "blokk" && (i%3) === 2 && i < n - taper;
+    const f = volFactor(i, n, taper, light);
+    const ctx = { thr, f, i, n, meta, periodization: o.periodization, taper };
+    const sessions = [];
+    let k = 0;
+    layout.forEach(([day, kind]) => {
+      k++;
+      const plannedDate = dateKey(addDays(start, i*7 + DAY_OFFSET[day]));
+      if (goalDate && parseKey(plannedDate) >= goalDate) return; // løpsdagen tar over
+      if (light && kind === "x") return; // lett uke: X-økta droppes først (sikkerhetsventilen)
+      sessions.push(buildRunSession(`g${pid}-u${i+1}-${k}`, day, plannedDate, kind, ctx));
+    });
+    strengthPlacementDays(layout, o.strengthPlacement || "C", o.strengthPerWeek).forEach((day, si) => {
+      const plannedDate = dateKey(addDays(start, i*7 + DAY_OFFSET[day]));
+      if (goalDate && parseKey(plannedDate) >= goalDate) return;
+      if (taper && i >= n - taper && si > 0) return; // nedtrapping: maks 1 styrkeøkt/uke
+      sessions.push(strengthSession(`g${pid}-u${i+1}-s${si+1}`, day, plannedDate));
+    });
+    sessions.sort((a,b) => DAY_OFFSET[a.plannedDay] - DAY_OFFSET[b.plannedDay]);
+    weeks.push({
+      week: i+1,
+      phase: weekPhase(i, n, taper, light, o.periodization),
+      title: weekTitle(i, n, taper, light),
+      info: (d => d.total ? `Ca. ${Math.round(d.total/3600*10)/10} t løping · ${d.easyPct} % rolig · ${d.thrPct} % terskel · ${d.hardPct} % høy intensitet` : "")(weekDistribution(sessions)),
+      sessions,
+    });
+  }
+  if (goalDate && meta.race) {
+    const wk = weeks[Math.min(n-1, Math.max(0, Math.floor((goalDate.getTime()-start.getTime())/(7*86400000))))];
+    wk.sessions.push({
+      id: `g${pid}-race`, plannedDay: WEEKDAYS[goalDate.getDay()], plannedDate: dateKey(goalDate), optional: false,
+      segments: [
+        { kind: "warmup", intensity: "lett_jogg", durationSec: 600 },
+        { kind: "test", note: `Løpsdag: ${meta.label}! Start kontrollert, avslutt sterkt. Lykke til!` },
+      ],
+    });
+    wk.sessions.sort((a,b) => DAY_OFFSET[a.plannedDay] - DAY_OFFSET[b.plannedDay]);
+  }
+  return { weeks, startDate: dateKey(start), weeksCount: n };
+}
+function programSessions(prog) {
+  const out = [];
+  ((prog.program_json && prog.program_json.weeks) || []).forEach(w => w.sessions.forEach(s => out.push({ ...s, week: w.week, programId: prog.id })));
+  return out;
+}
+
+// ─── TRAFIKKLYS (kap. 12): Whoop recovery + manuell fallback ──────────────────
+const READINESS = {
+  gronn: { dot: "#34c759", label: "Grønt lys",  advice: "Overskudd – du kan forlenge dagens nøkkeløkt 30–40 % (legg til drag eller forleng siste del)." },
+  gul:   { dot: "#ffcc00", label: "Gult lys",   advice: "Normal dag – gjennomfør økten som planlagt." },
+  rod:   { dot: "#ff3b30", label: "Rødt lys",   advice: "Kroppen er ikke klar – anbefaler 1 dag fri, deretter rolig økt før normal belastning. X-økta ryker først." },
+};
+function recoveryColor(score) { return score >= 67 ? "gronn" : score >= 34 ? "gul" : "rod"; }
+// Manuell sjekk: alle gode → grønn · én eller flere klart avvikende → rød · ellers gul
+function manualColor(a) {
+  const v = [a.hvilepuls, a.trapp, a.bein];
+  if (v.some(x => x === "avvik")) return "rod";
+  if (v.every(x => x === "god")) return "gronn";
+  return "gul";
+}
+function readinessReason(r) {
+  if (!r) return "";
+  if (r.source === "whoop") return `Whoop recovery ${r.recovery_score}%${r.resting_hr ? ` · hvilepuls ${r.resting_hr}` : ""}${r.sleep_pct ? ` · søvn ${r.sleep_pct}%` : ""}`;
+  return "manuell sjekk (hvilepuls, trappetest, beinfølelse)";
+}
+function isHardSession(s) {
+  if (s.type === "strength") return true;
+  return s.segments.some(seg =>
+    (seg.kind === "intervals" && INTENSITY[seg.work.intensity] && INTENSITY[seg.work.intensity].hard) ||
+    (seg.kind === "continuous" && INTENSITY[seg.intensity] && INTENSITY[seg.intensity].hard));
+}
+
+// ─── MOTIVASJON (A2): streaks, milepæler, 10-dagers-regelen ───────────────────
+const MILESTONES = [5, 10, 25, 50, 75, 100, 150, 200];
+function computeStreak(log) {
+  const wk = new Set();
+  Object.values(log).forEach(r => { if (r && r.done && r.done_date) wk.add(weekMondayKey(r.done_date)); });
+  if (!wk.size) return 0;
+  let cur = weekMondayKey(todayKey());
+  if (!wk.has(cur)) cur = dateKey(addDays(parseKey(cur), -7)); // inneværende uke kan være påbegynt
+  let streak = 0;
+  while (wk.has(cur)) { streak++; cur = dateKey(addDays(parseKey(cur), -7)); }
+  return streak;
+}
+// 10-dagers-regelen: minst én økt bør føles skikkelig god (RPE ≤ 4 / «lett») innen 10 dager
+function tenDayWarning(log) {
+  const cutoff = addDays(new Date(), -10);
+  const rated = Object.values(log).filter(r => r && r.done && r.done_date && parseKey(r.done_date) >= cutoff && (r.rpe != null || r.feeling));
+  if (rated.length < 2) return false;
+  return !rated.some(r => (r.rpe != null && r.rpe <= 4) || r.feeling === "lett");
+}
+
+// ─── STRAVA-LIMETEKST (del 7): faktisk fart fra Strava, min/km, kopierbar ─────
+function stravaPasteText(session, rec, thresholdKmh) {
+  const segDur = seg => seg.durationRangeSec ? durRangeText(seg.durationRangeSec) : durText(seg.durationSec);
+  if (session.type === "strength") {
+    return `Styrke for løpere, ca. ${sessionMinutes(session)} min: Myrtl-oppvarming + ${STRENGTH_EXERCISES.length} øvelser (enbens-styrke, legger, hamstring, hofte/kjerne)`;
+  }
+  const workKmh = rec && rec.threshold_kmh, easyKmh = rec && rec.easy_kmh;
+  let usedGoal = false;
+  const workPace = (w) => {
+    if (workKmh) return ` @ ${kmhToPace(workKmh)}`;
+    const z = workPaceZone(w, thresholdKmh);
+    if (!z) return "";
+    usedGoal = true;
+    return ` @ ${z.pace[0] === z.pace[1] ? z.pace[0] : `${z.pace[0]}-${z.pace[1]}`}`;
+  };
+  const parts = session.segments.map(seg => {
+    if (seg.kind === "warmup") return `${segDur(seg)} oppvarming`;
+    if (seg.kind === "cooldown") return `${segDur(seg)} nedjogg`;
+    if (seg.kind === "intervals") {
+      const nrep = seg.repeatsRange ? seg.repeatsRange[1] : seg.repeats;
+      return `${nrep} x ${durText(seg.work.durationSec)} ${iLabel(seg.work.intensity)}${workPace(seg.work)}`;
+    }
+    if (seg.kind === "continuous") {
+      const e = easyKmh && !(INTENSITY[seg.intensity] && INTENSITY[seg.intensity].hard) ? ` @ ${kmhToPace(easyKmh)}` : "";
+      return `${segDur(seg)} ${iLabel(seg.intensity)}${e}`;
+    }
+    if (seg.kind === "test") return seg.note || "test";
+    return null;
+  }).filter(Boolean);
+  return parts.join(", ") + (usedGoal ? " (mål)" : "");
+}
+
 // ─── HJELPERE ─────────────────────────────────────────────────────────────────
 function todayKey() {
   const d = new Date();
@@ -862,6 +1224,9 @@ function segmentSummary(session) {
       return `${d} ${iLabel(seg.intensity)}${seg.orRest ? " eller hvile" : ""}`;
     }
     if (seg.kind === "test") return seg.note || "Test";
+    if (seg.kind === "strength_ex") {
+      return `${seg.sets > 1 ? `${seg.sets} × ` : ""}${durText(seg.workSec)} ${seg.name}`;
+    }
     // warmup / cooldown
     const d = seg.durationRangeSec ? durRangeText(seg.durationRangeSec) : durText(seg.durationSec);
     const suffix = seg.kind === "warmup" ? "" : "";
@@ -878,6 +1243,8 @@ function sessionMinutes(session) {
       s += n * (seg.work.durationSec + seg.rest.durationSec);
     } else if (seg.kind === "continuous") {
       s += seg.durationRangeSec ? seg.durationRangeSec[0] : seg.durationSec;
+    } else if (seg.kind === "strength_ex") {
+      s += seg.sets * (seg.workSec + (seg.restSec || 0));
     } else if (seg.durationRangeSec) { s += seg.durationRangeSec[0]; }
     else if (seg.durationSec) { s += seg.durationSec; }
   });
@@ -974,8 +1341,13 @@ function buildSteps(session, choices) {
     if (seg.kind === "intervals") {
       const n = seg.repeatsRange ? (ch.reps ?? seg.repeatsRange[0]) : seg.repeats;
       for (let r=0; r<n; r++) {
-        steps.push({ label: `Arbeid ${r+1}/${n}`, intensity: seg.work.intensity, sec: seg.work.durationSec });
+        steps.push({ label: `Arbeid ${r+1}/${n}`, intensity: seg.work.intensity, sec: seg.work.durationSec, paceSec: seg.work.paceSec || null });
         steps.push({ label: `Pause ${r+1}/${n}`, intensity: seg.rest.intensity, sec: seg.rest.durationSec });
+      }
+    } else if (seg.kind === "strength_ex") {
+      for (let r=0; r<seg.sets; r++) {
+        steps.push({ label: seg.sets > 1 ? `${seg.name} · sett ${r+1}/${seg.sets}` : seg.name, intensity: "styrke", sec: seg.workSec, say: `${seg.name}, ${durSpoken(seg.workSec)}` });
+        if (seg.restSec) steps.push({ label: "Pause", intensity: "pause", sec: seg.restSec, say: `Pause, ${durSpoken(seg.restSec)}` });
       }
     } else if (seg.kind === "continuous") {
       const sec = seg.durationRangeSec ? (ch.sec ?? seg.durationRangeSec[0]) : seg.durationSec;
@@ -996,11 +1368,13 @@ function hrZoneText(intensity, maxHR) {
   const z = hrZone(intensity, maxHR);
   return z ? ` · ${z.bpm[0]}-${z.bpm[1]} slag/min` : "";
 }
-// Kort tekst med anbefalt fart-range for et intervall-drag – tom streng uten terskelfart
-function paceZoneText(intervalSec, thresholdKmh, unit) {
-  const z = paceZone(intervalSec, thresholdKmh);
+// Kort tekst med anbefalt fart for et arbeidsdrag – lagret målfart (genererte
+// program) foran %-kalkulatoren. Tom streng uten terskelfart/målfart.
+function paceZoneText(workSeg, thresholdKmh, unit) {
+  const z = workPaceZone(workSeg, thresholdKmh);
   if (!z) return "";
-  return unit === "pace" ? ` · ${z.pace[0]}-${z.pace[1]} /km` : ` · ${z.kmh[0]}-${z.kmh[1]} km/t`;
+  if (unit === "pace") return z.pace[0] === z.pace[1] ? ` · ${z.pace[0]} /km` : ` · ${z.pace[0]}-${z.pace[1]} /km`;
+  return z.kmh[0] === z.kmh[1] ? ` · ${z.kmh[0]} km/t` : ` · ${z.kmh[0]}-${z.kmh[1]} km/t`;
 }
 
 function SegmentList({ session, maxHR, thresholdKmh, unit }) {
@@ -1014,7 +1388,19 @@ function SegmentList({ session, maxHR, thresholdKmh, unit }) {
               <div>
                 <p style=${{margin:0,fontSize:14,fontWeight:500}}>${repText(seg)} × intervaller</p>
                 <p style=${{margin:"2px 0 0",fontSize:13,color:"var(--color-text-secondary)"}}>
-                  ${durText(seg.work.durationSec)} ${iLabel(seg.work.intensity)}${hrZoneText(seg.work.intensity,maxHR)}${paceZoneText(seg.work.durationSec,thresholdKmh,unit)} / ${durText(seg.rest.durationSec)} ${iLabel(seg.rest.intensity)}
+                  ${durText(seg.work.durationSec)} ${iLabel(seg.work.intensity)}${hrZoneText(seg.work.intensity,maxHR)}${paceZoneText(seg.work,thresholdKmh,unit)} / ${durText(seg.rest.durationSec)} ${iLabel(seg.rest.intensity)}
+                </p>
+              </div>
+            </div>`;
+        }
+        if (seg.kind === "strength_ex") {
+          return html`
+            <div key=${i} style=${{display:"flex",gap:10,alignItems:"flex-start"}}>
+              <span style=${{width:6,alignSelf:"stretch",borderRadius:3,background:iColor("styrke"),flexShrink:0}}></span>
+              <div>
+                <p style=${{margin:0,fontSize:14,fontWeight:500}}>${seg.name}</p>
+                <p style=${{margin:"2px 0 0",fontSize:13,color:"var(--color-text-secondary)"}}>
+                  ${seg.sets > 1 ? `${seg.sets} sett × ` : ""}${durText(seg.workSec)}${seg.restSec ? ` / ${durText(seg.restSec)} pause` : ""}
                 </p>
               </div>
             </div>`;
@@ -1075,6 +1461,8 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
   const [rem, setRem] = useState(steps.length ? steps[0].sec : 0);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
+  const [rpe, setRpe] = useState(null);
+  const [feeling, setFeeling] = useState(null);
   const [locked, setLocked] = useState(false);
   const [unlockHint, setUnlockHint] = useState(false);
   const [shield, setShield] = useState(false);
@@ -1110,7 +1498,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
     try { if (wakeRef.current) { wakeRef.current.release(); wakeRef.current = null; } } catch {}
     try { if (videoRef.current) { videoRef.current.pause(); } } catch {}
   };
-  const announce = (i) => { if (!voiceOn || !steps[i]) return; say(stepSpoken(steps[i]), voiceURI); };
+  const announce = (i) => { if (!voiceOn || !steps[i]) return; say(steps[i].say || stepSpoken(steps[i]), voiceURI); };
 
   const toggleRun = () => {
     const willRun = !running;
@@ -1144,7 +1532,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
           if (r <= 1) return 0;
           const nr = r-1;
           if (voiceOn) {
-            if (nxt && cur.sec >= 6 && nr === 5) say(stepSpoken(nxt), voiceURI);
+            if (nxt && cur.sec >= 6 && nr === 5) say(nxt.say || stepSpoken(nxt), voiceURI);
             else if (cur.sec >= 6 && nr <= 3 && nr >= 1) say(String(nr), voiceURI);
           } else if (nr <= 3) { playPling(1, 660); }
           return nr;
@@ -1173,11 +1561,14 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
   if (!steps.length) return html`<p style=${{padding:20}}>Ingen tidsstyrte segmenter i denne økten.</p>`;
 
   if (done) return html`
-    <div style=${{textAlign:"center",padding:"48px 20px"}}>
+    <div style=${{textAlign:"center",padding:"32px 20px"}}>
       <i class="ti ti-circle-check" style=${{fontSize:56,color:"#1D9E75",display:"block",marginBottom:16}}></i>
       <h2 style=${{margin:"0 0 8px",fontSize:22,fontWeight:500}}>Økt fullført!</h2>
-      <p style=${{color:"var(--color-text-secondary)",marginBottom:28}}>Vil du logge farten og krysse av økten?</p>
-      <button onClick=${onFinish} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15,marginBottom:10}}>
+      <p style=${{color:"var(--color-text-secondary)",marginBottom:20}}>Hvordan var det? Svaret brukes i trafikklyset (10-dagers-regelen).</p>
+      <div style=${{textAlign:"left",marginBottom:8}}>
+        <${RpePicker} rpe=${rpe} setRpe=${setRpe} feeling=${feeling} setFeeling=${setFeeling}/>
+      </div>
+      <button onClick=${()=>onFinish({ rpe, feeling })} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15,marginBottom:10}}>
         <i class="ti ti-check"></i> Logg og kryss av
       </button>
       <button onClick=${onExit} style=${{width:"100%",padding:"12px",fontSize:14,color:"var(--color-text-secondary)"}}>Tilbake</button>
@@ -1190,7 +1581,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
   const circ = Math.round(2*Math.PI*70);
   const col = iColor(step.intensity);
   const zone = hrZone(step.intensity, maxHR);
-  const pace = step.label.startsWith("Arbeid") ? paceZone(step.sec, thresholdKmh) : null;
+  const pace = step.paceSec ? paceFromSec(step.paceSec) : (step.label.startsWith("Arbeid") ? paceZone(step.sec, thresholdKmh) : null);
   const totalSec = steps.reduce((a,x)=>a+x.sec,0);
   let elapsedSec = 0; for (let i=0;i<idx;i++) elapsedSec += steps[i].sec;
   elapsedSec += step.sec - rem;
@@ -1260,7 +1651,7 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
 }
 
 // Konfig før guidet økt (velg antall/varighet for ranges)
-function GuidedConfig({ session, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onStart, onCancel }) {
+function GuidedConfig({ session, readiness, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onStart, onCancel }) {
   const initial = {};
   session.segments.forEach((seg,i)=>{
     if (seg.repeatsRange) initial[i] = { reps: seg.repeatsRange[1] };
@@ -1268,13 +1659,17 @@ function GuidedConfig({ session, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onS
   });
   const [choices, setChoices] = useState(initial);
   const hasRanges = Object.keys(initial).length > 0;
-  const setReps = (i,v,seg)=>setChoices(c=>({...c,[i]:{reps:Math.min(seg.repeatsRange[1],Math.max(seg.repeatsRange[0],v))}}));
-  const setSec  = (i,v,seg)=>setChoices(c=>({...c,[i]:{sec:Math.min(seg.durationRangeSec[1],Math.max(seg.durationRangeSec[0],v))}}));
+  // Grønt lys (kap. 12): tillat å forlenge økten 30-40 % utover planlagt range
+  const green = readiness && readiness.color === "gronn" && isHardSession(session);
+  const ext = m => green ? Math.ceil(m*1.4) : m;
+  const setReps = (i,v,seg)=>setChoices(c=>({...c,[i]:{reps:Math.min(ext(seg.repeatsRange[1]),Math.max(seg.repeatsRange[0],v))}}));
+  const setSec  = (i,v,seg)=>setChoices(c=>({...c,[i]:{sec:Math.min(ext(seg.durationRangeSec[1]),Math.max(seg.durationRangeSec[0],v))}}));
 
   return html`
     <div>
       <h2 style=${{margin:"0 0 4px",fontSize:19,fontWeight:500}}>Guidet økt</h2>
       <p style=${{margin:"0 0 18px",fontSize:14,color:"var(--color-text-secondary)"}}>Timeren teller deg gjennom hvert segment med lydsignal ved bytte. Perfekt på mølla.</p>
+      ${isHardSession(session) && readiness && (readiness.color === "gronn" || readiness.color === "rod") && html`<${ReadinessBanner} readiness=${readiness}/>`}
       ${hasRanges && html`
         <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px 18px",marginBottom:16}}>
           <p style=${{margin:"0 0 12px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Velg for denne økten</p>
@@ -1334,7 +1729,329 @@ function GuidedConfig({ session, voiceOn, setVoiceOn, voiceURI, setVoiceURI, onS
   `;
 }
 
-function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, setVoiceURI, stravaConnected, maxHR, thresholdKmh, onBack, onSave, onDelete }) {
+// ─── A1: RPE + følelse ────────────────────────────────────────────────────────
+function RpePicker({ rpe, setRpe, feeling, setFeeling }) {
+  return html`
+    <div style=${{marginBottom:14}}>
+      <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:6}}>Hvor hard føltes økten? (1 = svært lett, 10 = maks)</label>
+      <div style=${{display:"flex",gap:4,marginBottom:8}}>
+        ${[1,2,3,4,5,6,7,8,9,10].map(n=>html`
+          <button key=${n} onClick=${()=>setRpe(rpe===n?null:n)} style=${{flex:1,minWidth:0,padding:"7px 0",fontSize:13,fontWeight:rpe===n?700:400,
+            background:rpe===n?"#1D9E75":"var(--color-background-secondary)",color:rpe===n?"#fff":"var(--color-text-primary)",
+            border:rpe===n?"none":"0.5px solid var(--color-border-tertiary)"}}>${n}</button>`)}
+      </div>
+      <div style=${{display:"flex",gap:8}}>
+        ${[["lett","Lett 😀"],["ok","Ok 🙂"],["tung","Tung 😮‍💨"]].map(([v,l])=>html`
+          <button key=${v} onClick=${()=>setFeeling(feeling===v?null:v)} style=${{flex:1,padding:"8px 0",fontSize:13,
+            background:feeling===v?"#1D9E75":"var(--color-background-secondary)",color:feeling===v?"#fff":"var(--color-text-primary)",
+            border:feeling===v?"none":"0.5px solid var(--color-border-tertiary)"}}>${l}</button>`)}
+      </div>
+    </div>`;
+}
+
+// ─── TRAFIKKLYS: banner på nøkkeløkt + manuell 30-sek sjekk ───────────────────
+function ReadinessBanner({ readiness }) {
+  const m = readiness && READINESS[readiness.color];
+  if (!m) return null;
+  return html`
+    <div style=${{display:"flex",gap:10,alignItems:"flex-start",background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg)",padding:"12px 14px",marginBottom:14}}>
+      <span style=${{width:12,height:12,borderRadius:"50%",background:m.dot,flexShrink:0,marginTop:3}}></span>
+      <p style=${{margin:0,fontSize:13,lineHeight:1.5,color:"var(--color-text-secondary)"}}>
+        <b style=${{color:"var(--color-text-primary)"}}>${m.label}</b> · ${readinessReason(readiness)}. ${m.advice}
+      </p>
+    </div>`;
+}
+function ManualCheck({ profile, onClose, onSaved }) {
+  const [hvilepuls, setHvilepuls] = useState("ok");
+  const [trapp, setTrapp] = useState("ok");
+  const [bein, setBein] = useState("ok");
+  const [baseline, setBaseline] = useState(profile.resting_hr_baseline ?? null);
+  const [busy, setBusy] = useState(false);
+  const OPTS = ["god","ok","avvik"];
+  const rows = [
+    [`Hvilepuls i morges${baseline ? ` (din normal: ~${baseline})` : ""}`, hvilepuls, setHvilepuls, ["Lav","Normal","Høy"]],
+    ["Trappetest – lårfølelse opp en trapp", trapp, setTrapp, ["Lett","OK","Tungt"]],
+    ["Beinfølelse", bein, setBein, ["Lette","Normale","Tunge"]],
+  ];
+  const save = async () => {
+    setBusy(true);
+    const row = { day: todayKey(), source: "manual", color: manualColor({ hvilepuls, trapp, bein }) };
+    await saveReadiness(row);
+    if (baseline !== (profile.resting_hr_baseline ?? null)) { try { await saveProfile({ resting_hr_baseline: baseline }); } catch {} }
+    setBusy(false);
+    onSaved(row);
+  };
+  return html`
+    <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick=${onClose}>
+      <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",padding:"22px",maxWidth:380,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
+        <p style=${{margin:"0 0 4px",fontSize:18,fontWeight:600}}>30-sekunders dagsform-sjekk</p>
+        <p style=${{margin:"0 0 16px",fontSize:13,color:"var(--color-text-secondary)"}}>Bokas raske trafikklys-sjekk før nøkkeløkt (brukes når Whoop-data mangler). Alle gode = grønt, ett klart avvik = rødt.</p>
+        ${rows.map(([label, val, setVal, names], i)=>html`
+          <div key=${i} style=${{marginBottom:12}}>
+            <label style=${{display:"block",fontSize:13,marginBottom:6}}>${label}</label>
+            <div style=${{display:"flex",gap:6}}>
+              ${OPTS.map((o,j)=>html`
+                <button key=${o} onClick=${()=>setVal(o)} style=${{flex:1,padding:"9px 0",fontSize:13,
+                  background:val===o?"#1D9E75":"var(--color-background-secondary)",color:val===o?"#fff":"var(--color-text-primary)",
+                  border:val===o?"none":"0.5px solid var(--color-border-tertiary)"}}>${names[j]}</button>`)}
+            </div>
+          </div>`)}
+        <div style=${{marginBottom:16}}>
+          <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Normal hvilepuls (valgfritt, for referanse)</label>
+          <input type="number" inputmode="numeric" value=${baseline ?? ""} placeholder="slag/min"
+            onInput=${e=>setBaseline(e.target.value ? parseInt(e.target.value,10) : null)} style=${{width:"100%",boxSizing:"border-box"}}/>
+        </div>
+        <button onClick=${save} disabled=${busy} class="btn-primary" style=${{width:"100%",padding:"13px",fontSize:15,marginBottom:8}}>${busy?"Lagrer…":"Lagre dagsform"}</button>
+        <button onClick=${onClose} style=${{width:"100%",padding:"12px",fontSize:14,color:"var(--color-text-secondary)"}}>Avbryt</button>
+      </div>
+    </div>`;
+}
+function ReadinessCard({ readiness, whoopConnected, onManualCheck, onConnectWhoop, onDisconnectWhoop }) {
+  const m = readiness && READINESS[readiness.color];
+  return html`
+    <div style=${{marginBottom:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
+      <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Dagsform · trafikklys</p>
+      ${m
+        ? html`<div style=${{display:"flex",gap:10,alignItems:"flex-start",marginBottom:10}}>
+            <span style=${{width:14,height:14,borderRadius:"50%",background:m.dot,flexShrink:0,marginTop:2}}></span>
+            <div>
+              <p style=${{margin:0,fontSize:14,fontWeight:600}}>${m.label}</p>
+              <p style=${{margin:"2px 0 0",fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>${cap(readinessReason(readiness))}. ${m.advice}</p>
+            </div>
+          </div>`
+        : html`<p style=${{margin:"0 0 10px",fontSize:13,color:"var(--color-text-secondary)"}}>Ingen dagsform registrert i dag.${whoopConnected ? " Whoop-data mangler (ikke synket ennå?) – ta den manuelle sjekken." : ""}</p>`}
+      <div style=${{display:"flex",gap:8}}>
+        <button onClick=${onManualCheck} style=${{flex:1,padding:"10px",fontSize:13}}>30-sek sjekk</button>
+        ${whoopConnected
+          ? html`<button onClick=${onDisconnectWhoop} style=${{padding:"10px 12px",fontSize:13,color:"var(--color-text-secondary)"}}>Koble fra Whoop</button>`
+          : html`<button onClick=${onConnectWhoop} style=${{flex:1,padding:"10px",fontSize:13,background:"#101518",color:"#fff",border:"none"}}>Koble til Whoop</button>`}
+      </div>
+    </div>`;
+}
+
+// ─── A2: streaks + milepæler + 10-dagers-varsel ───────────────────────────────
+function MotivationCard({ log, activeProgram }) {
+  const streak = computeStreak(log);
+  const total = Object.values(log).filter(r=>r&&r.done).length;
+  if (!total) return null;
+  const next = MILESTONES.find(m=>m>total);
+  let halfway = false;
+  if (activeProgram) {
+    const ss = programSessions(activeProgram);
+    const d = ss.filter(s=>log[s.id]&&log[s.id].done).length;
+    halfway = ss.length > 0 && d/ss.length >= 0.5 && d < ss.length;
+  }
+  const warn = tenDayWarning(log);
+  return html`
+    <div style=${{marginBottom:14,padding:"14px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
+      <div style=${{display:"flex",gap:16,flexWrap:"wrap",fontSize:13}}>
+        ${streak >= 2 && html`<span>🔥 <b>${streak} uker</b> på rad med trening</span>`}
+        <span>🏅 <b>${total}</b> økter totalt${next ? ` · neste milepæl: ${next}` : ""}</span>
+        ${halfway && html`<span>🎉 Halvveis i programmet!</span>`}
+      </div>
+      ${warn && html`
+        <p style=${{margin:"10px 0 0",fontSize:13,lineHeight:1.5,color:"#ff3b30"}}>
+          ⚠️ <b>Sett på bremsene:</b> ingen økt har føltes skikkelig god på 10 dager. Ta en lettere uke – reduser intensitet, behold rolig løping (45/15 og 30/30 stimulerer muskulaturen tilbake).
+        </p>`}
+    </div>`;
+}
+
+// ─── A3: ukekalender for generert program (planlagte datoer) ──────────────────
+function WeekCalendar({ program, log, onOpen }) {
+  const [offset, setOffset] = useState(0);
+  const monday = addDays(parseKey(weekMondayKey(todayKey())), offset*7);
+  const sess = programSessions(program);
+  const today = todayKey();
+  const fmtD = d => `${d.getDate()}.${d.getMonth()+1}`;
+  return html`
+    <div style=${{marginBottom:14,padding:"14px 16px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
+      <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <button onClick=${()=>setOffset(o=>o-1)} style=${{padding:"4px 10px",fontSize:14}}><i class="ti ti-chevron-left"></i></button>
+        <span style=${{fontSize:13,fontWeight:500}}>${fmtD(monday)} – ${fmtD(addDays(monday,6))}${offset===0?" (denne uken)":""}</span>
+        <button onClick=${()=>setOffset(o=>o+1)} style=${{padding:"4px 10px",fontSize:14}}><i class="ti ti-chevron-right"></i></button>
+      </div>
+      <div style=${{display:"flex",gap:4}}>
+        ${[0,1,2,3,4,5,6].map(i=>{
+          const d = addDays(monday,i), k = dateKey(d);
+          const list = sess.filter(s=>s.plannedDate===k);
+          const isToday = k===today;
+          return html`
+            <button key=${i} onClick=${()=>{ if(list.length) onOpen(list[0]); }} style=${{
+              flex:1,minWidth:0,padding:"7px 0 6px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+              background:isToday?"var(--color-background-info)":"var(--color-background-secondary)",
+              border:isToday?"1px solid var(--color-border-info)":"0.5px solid var(--color-border-tertiary)",
+              cursor:list.length?"pointer":"default",opacity:list.length||isToday?1:0.6}}>
+              <span style=${{fontSize:10,color:"var(--color-text-tertiary)"}}>${["M","T","O","T","F","L","S"][i]}</span>
+              <span style=${{fontSize:12,fontWeight:isToday?700:400}}>${d.getDate()}</span>
+              <span style=${{display:"flex",gap:2,minHeight:8}}>
+                ${list.map(s=>{
+                  const done = log[s.id]&&log[s.id].done;
+                  const col = done ? "#1D9E75" : s.type==="strength" ? iColor("styrke") : iColor((sessionPaces(s).work)||"rolig_lop");
+                  return html`<span key=${s.id} style=${{width:7,height:7,borderRadius:"50%",background:col,opacity:done?1:0.85}}></span>`;
+                })}
+              </span>
+            </button>`;
+        })}
+      </div>
+      <p style=${{margin:"8px 0 0",fontSize:11,color:"var(--color-text-tertiary)"}}>Ryker en økt: ikke ta den igjen – hold neste planlagte. Styr fremover, aldri bakover.</p>
+    </div>`;
+}
+
+// ─── PROGRAMBYGGER: wizard ────────────────────────────────────────────────────
+function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
+  const [step, setStep] = useState(0);
+  const [goal, setGoal] = useState(null);
+  const [goalDate, setGoalDate] = useState("");
+  const [weeksCount, setWeeksCount] = useState(8);
+  const [runs, setRuns] = useState(4);
+  const [birthYear, setBirthYear] = useState(profile.birth_year ?? null);
+  const [injury, setInjury] = useState(profile.injury_history ?? "ingen");
+  const [strength, setStrength] = useState(null);   // null = følg anbefalingen
+  const [placement, setPlacement] = useState("C");
+  const [thr, setThr] = useState(thresholdKmh ?? null);
+  const [period, setPeriod] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const meta = goal ? GOAL_META[goal] : null;
+  const recS = recommendStrength(birthYear, injury);
+  const sVal = strength ?? recS;
+  const recP = injury === "mange" ? "flat" : (meta && meta.race ? "progressiv_x" : "flat");
+  const pVal = period ?? recP;
+  const weeksTo = meta && meta.race && goalDate ? Math.round((parseKey(goalDate).getTime() - nextMonday().getTime())/(7*86400000)) : null;
+  const canNext = step===0 ? !!goal
+    : step===1 ? (meta.race ? (goalDate && weeksTo >= 4) : weeksCount >= 4)
+    : true;
+  const opts = () => ({ goal, goalDate: meta.race ? goalDate : null, weeksCount, runsPerWeek: runs, strengthPerWeek: sVal, periodization: pVal, thresholdKmh: thr, strengthPlacement: placement });
+  const create = async () => {
+    setBusy(true); setErr("");
+    const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const gen = generateProgram(opts(), id.slice(0,8));
+    try { await saveProfile({ birth_year: birthYear, injury_history: injury }); } catch {}
+    const error = await insertProgram({ id, goal, goal_date: meta.race ? goalDate : null, runs_per_week: runs, strength_per_week: sVal, periodization: pVal, level_kmh: thr, program_json: gen, active: true });
+    setBusy(false);
+    if (error) { setErr(`Kunne ikke lagre programmet (${error.message || "ukjent feil"}). Er v2-schema.sql kjørt i Supabase?`); return; }
+    onCreated(id);
+  };
+  const chip = (sel) => ({ padding:"12px 14px", fontSize:14, textAlign:"left", width:"100%", marginBottom:8,
+    background: sel ? "#1D9E75" : "var(--color-background-secondary)", color: sel ? "#fff" : "var(--color-text-primary)",
+    border: sel ? "none" : "0.5px solid var(--color-border-tertiary)" });
+  const stepper = (val, setVal, min, max) => html`
+    <div style=${{display:"flex",alignItems:"center",gap:14,justifyContent:"center",margin:"10px 0"}}>
+      <button onClick=${()=>setVal(Math.max(min,val-1))} style=${{width:40,height:40,padding:0,fontSize:20}}>−</button>
+      <span style=${{minWidth:40,textAlign:"center",fontSize:24,fontWeight:600}}>${val}</span>
+      <button onClick=${()=>setVal(Math.min(max,val+1))} style=${{width:40,height:40,padding:0,fontSize:20}}>+</button>
+    </div>`;
+  const stepTitles = ["Hva er målet?","Når?","Løpeøkter per uke","Styrke","Nivå","Periodisering","Oppsummering"];
+  let bodyEl;
+  if (step === 0) bodyEl = html`<div>
+    ${Object.entries(GOAL_META).map(([k,m])=>html`
+      <button key=${k} onClick=${()=>setGoal(k)} style=${chip(goal===k)}>${m.label}</button>`)}
+  </div>`;
+  else if (step === 1) bodyEl = meta.race
+    ? html`<div>
+        <label style=${{display:"block",fontSize:13,color:"var(--color-text-secondary)",marginBottom:6}}>Dato for løpet</label>
+        <input type="date" value=${goalDate} onChange=${e=>setGoalDate(e.target.value)} style=${{width:"100%",boxSizing:"border-box",marginBottom:8}}/>
+        ${goalDate && html`<p style=${{margin:0,fontSize:13,color:weeksTo>=4?"var(--color-text-secondary)":"#ff3b30"}}>
+          ${weeksTo>=4 ? `Gir et program på ${weeksTo} uker (starter førstkommende mandag).` : "For kort tid – programmet trenger minst 4 uker."}</p>`}
+      </div>`
+    : html`<div>
+        <p style=${{margin:"0 0 4px",fontSize:13,color:"var(--color-text-secondary)"}}>Hvor mange uker skal programmet vare?</p>
+        ${stepper(weeksCount, setWeeksCount, 4, 24)}
+      </div>`;
+  else if (step === 2) bodyEl = html`<div>
+    ${stepper(runs, setRuns, 3, 6)}
+    <p style=${{margin:0,fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>
+      ${runs===3 ? "Hovedøkt + rolig + langtur (støtte/X droppes)." : runs===4 ? "Hovedøkt + støtteøkt + rolig + langtur." : runs===5 ? "Hovedøkt + støtteøkt + 2 rolige + langtur." : "Hovedøkt + støtteøkt + X-økt + 2 rolige + langtur."}
+      Tre nøkkeløkter er grunnmuren – resten er rolig påfyll (justert 80/20: 60-65 % rolig, 20-30 % terskel, 5-10 % høy intensitet).
+    </p>
+  </div>`;
+  else if (step === 3) bodyEl = html`<div>
+    <div style=${{display:"flex",gap:10,marginBottom:12}}>
+      <div style=${{flex:1}}>
+        <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Fødselsår</label>
+        <input type="number" inputmode="numeric" value=${birthYear ?? ""} placeholder="f.eks. 1985"
+          onInput=${e=>setBirthYear(e.target.value ? parseInt(e.target.value,10) : null)} style=${{width:"100%",boxSizing:"border-box"}}/>
+      </div>
+    </div>
+    <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Skadehistorikk</label>
+    <div style=${{display:"flex",gap:6,marginBottom:12}}>
+      ${[["ingen","Ingen"],["noen","Noen"],["mange","Mange"]].map(([v,l])=>html`
+        <button key=${v} onClick=${()=>setInjury(v)} style=${{flex:1,padding:"9px 0",fontSize:13,
+          background:injury===v?"#1D9E75":"var(--color-background-secondary)",color:injury===v?"#fff":"var(--color-text-primary)",
+          border:injury===v?"none":"0.5px solid var(--color-border-tertiary)"}}>${l}</button>`)}
+    </div>
+    <p style=${{margin:"0 0 8px",fontSize:13,color:"var(--color-text-secondary)"}}>Anbefalt for deg: <b>${recS} styrkeøkter/uke</b> (boka: mer løping er ofte bedre enn styrke for unge skadefrie – styrke er viktigst over 50 år eller ved mange skader).</p>
+    <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Styrkeøkter per uke</label>
+    <div style=${{display:"flex",gap:6,marginBottom:12}}>
+      ${[0,1,2].map(n=>html`
+        <button key=${n} onClick=${()=>setStrength(n)} style=${{flex:1,padding:"9px 0",fontSize:14,fontWeight:sVal===n?700:400,
+          background:sVal===n?"#1D9E75":"var(--color-background-secondary)",color:sVal===n?"#fff":"var(--color-text-primary)",
+          border:sVal===n?"none":"0.5px solid var(--color-border-tertiary)"}}>${n}</button>`)}
+    </div>
+    ${sVal > 0 && html`<div>
+      <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Plassering (styrke legges på en allerede hard dag)</label>
+      ${[["C","Etter X-økt / hard lørdag (anbefalt)","Påvirker ikke terskeldagene, lett dag etterpå."],["A","Etter terskeldag","Samler belastningen på torsdag."],["B","Før terskeldag","Terskel senker muskeltonus igjen dagen etter."]].map(([v,l,d])=>html`
+        <button key=${v} onClick=${()=>setPlacement(v)} style=${chip(placement===v)}>
+          <span style=${{fontWeight:600}}>${l}</span>
+          <span style=${{display:"block",fontSize:12,opacity:0.8,marginTop:2}}>${d}</span>
+        </button>`)}
+    </div>`}
+  </div>`;
+  else if (step === 4) bodyEl = html`<div>
+    <p style=${{margin:"0 0 10px",fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>Terskelfarten styrer all fartsguiding i programmet (bokas sek/km-tempoguide). Forhåndsutfylt fra profilen din – juster hvis du vet bedre.</p>
+    <${SpeedInput} label="Terskelfart" kmh=${thr} unit=${unit} onChange=${setThr}/>
+    ${!thr && html`<p style=${{margin:"10px 0 0",fontSize:12,color:"var(--color-text-tertiary)"}}>Uten terskelfart genereres programmet uten fartsguide – du kan fylle inn senere under hjerte-ikonet.</p>`}
+  </div>`;
+  else if (step === 5) bodyEl = html`<div>
+    ${[["flat","Flat struktur","Samme ukestruktur hele veien. Lavest skaderisiko, forutsigbar. Anbefalt for skadeutsatte/travle."],
+       ["blokk","Blokk: 2 harde + 1 lett","Hver tredje uke er lett (~35 % mindre volum). Variasjon og løft – for erfarne."],
+       ["progressiv_x","Progressiv X-økt","Terskel står fast, X-økta spisses gradvis mot måldato. Anbefalt mot et konkret løp (egen X-økt krever 5-6 økter/uke)."]].map(([v,l,d])=>html`
+      <button key=${v} onClick=${()=>setPeriod(v)} style=${chip(pVal===v)}>
+        <span style=${{fontWeight:600}}>${l}${v===recP?" · anbefalt":""}</span>
+        <span style=${{display:"block",fontSize:12,opacity:0.8,marginTop:2}}>${d}</span>
+      </button>`)}
+  </div>`;
+  else {
+    const gen = generateProgram(opts(), "preview");
+    const w1 = gen.weeks[0];
+    bodyEl = html`<div>
+      <div style=${{background:"var(--color-background-secondary)",borderRadius:"var(--border-radius-md)",padding:"14px 16px",marginBottom:12,fontSize:14,lineHeight:1.7}}>
+        <b>${meta.label}</b> · ${gen.weeksCount} uker fra ${gen.startDate}<br/>
+        ${runs} løpeøkter/uke${sVal ? ` + ${sVal} styrke` : ""} · ${pVal === "flat" ? "flat struktur" : pVal === "blokk" ? "blokkperiodisering" : "progressiv X-økt"}<br/>
+        ${w1 ? w1.info : ""}
+      </div>
+      ${w1 && html`<div style=${{marginBottom:12}}>
+        <p style=${{margin:"0 0 6px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Uke 1</p>
+        ${w1.sessions.map(s=>html`
+          <p key=${s.id} style=${{margin:"0 0 5px",fontSize:13,color:"var(--color-text-secondary)"}}>
+            <b style=${{color:"var(--color-text-primary)"}}>${s.plannedDay}:</b> ${s.type==="strength" ? `Styrke (ca. ${sessionMinutes(s)} min)` : segmentSummary(s)}
+          </p>`)}
+      </div>`}
+      ${err && html`<p style=${{margin:"0 0 10px",fontSize:13,color:"#ff3b30"}}>${err}</p>`}
+      <button onClick=${create} disabled=${busy} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15}}>${busy ? "Lagrer…" : "Opprett program"}</button>
+    </div>`;
+  }
+  return html`
+    <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick=${onClose}>
+      <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg) var(--border-radius-lg) 0 0",padding:"20px 22px 26px",maxWidth:480,width:"100%",maxHeight:"88vh",overflowY:"auto",boxSizing:"border-box"}}>
+        <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <p style=${{margin:0,fontSize:18,fontWeight:600}}>Bygg eget program</p>
+          <button onClick=${onClose} style=${{background:"none",border:"none",fontSize:20,color:"var(--color-text-secondary)",cursor:"pointer",padding:4}}><i class="ti ti-x"></i></button>
+        </div>
+        <div style=${{display:"flex",gap:3,marginBottom:14}}>
+          ${stepTitles.map((_,i)=>html`<div key=${i} style=${{flex:1,height:3,borderRadius:2,background:i<=step?"#1D9E75":"var(--color-border-tertiary)"}}></div>`)}
+        </div>
+        <p style=${{margin:"0 0 12px",fontSize:15,fontWeight:600}}>${step+1}/${stepTitles.length} · ${stepTitles[step]}</p>
+        ${bodyEl}
+        <div style=${{display:"flex",gap:10,marginTop:16}}>
+          ${step > 0 && html`<button onClick=${()=>setStep(s=>s-1)} style=${{flex:1,padding:"12px",fontSize:14}}>Tilbake</button>`}
+          ${step < stepTitles.length-1 && html`<button onClick=${()=>setStep(s=>s+1)} disabled=${!canNext} class="btn-blue" style=${{flex:2,padding:"12px",fontSize:14}}>Neste</button>`}
+        </div>
+      </div>
+    </div>`;
+}
+
+function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, setVoiceURI, stravaConnected, maxHR, thresholdKmh, readiness, onBack, onSave, onDelete }) {
   const rec = log[session.id] || {};
   const [mode, setMode] = useState("detail"); // detail | config | guided
   const [choices, setChoices] = useState(null);
@@ -1351,6 +2068,10 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
   const [workHr, setWorkHr] = useState(rec.work_hr ?? null);
   const [dist, setDist] = useState(rec.distance_m ?? null);
   const [movTime, setMovTime] = useState(rec.moving_time_s ?? null);
+  const [rpe, setRpe] = useState(rec.rpe ?? null);
+  const [feeling, setFeeling] = useState(rec.feeling ?? null);
+  const [copied, setCopied] = useState(false);
+  const isStrength = session.type === "strength";
   const useActivity = async (a) => {
     setSBusy(true); setPicks(null); setSMsg("");
     const s = await stravaCall({ action:"streams", id: a.id });
@@ -1380,26 +2101,38 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
   const noteRef = useRef(null);
   useEffect(() => { const el = noteRef.current; if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }, [note, mode]);
 
-  const save = (markDone) => {
-    onSave({
+  const save = (markDone, extra) => {
+    const ex = extra || {};
+    const row = {
       session_id: session.id,
       week: session.week,
       done: markDone,
       done_date: markDone ? doneDate : null,
       easy_kmh: easy, threshold_kmh: thr, note: note || null,
       easy_hr: easyHr, work_hr: workHr, distance_m: dist, moving_time_s: movTime,
-    });
+    };
+    // Nye v2-kolonner sendes kun når de har verdi, så logging virker før v2-schema.sql er kjørt
+    const rpeVal = ex.rpe !== undefined ? ex.rpe : rpe;
+    const feelVal = ex.feeling !== undefined ? ex.feeling : feeling;
+    if (rpeVal != null) row.rpe = rpeVal;
+    if (feelVal != null) row.feeling = feelVal;
+    if (session.plannedDate) row.planned_date = session.plannedDate;
+    if (session.programId) row.program_id = session.programId;
+    onSave(row);
     setJustSaved(true);
     setTimeout(() => setJustSaved(false), 2000);
   };
 
-  if (mode === "config") return html`<div style=${{padding:"4px 2px"}}><${GuidedConfig} session=${session}
+  if (mode === "config") return html`<div style=${{padding:"4px 2px"}}><${GuidedConfig} session=${session} readiness=${readiness}
     voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI}
     onStart=${(c)=>{setChoices(c);setMode("guided");}} onCancel=${()=>setMode("detail")}/></div>`;
 
   if (mode === "guided") return html`<${GuidedSession} session=${session} choices=${choices}
     voiceOn=${voiceOn} voiceURI=${voiceURI} maxHR=${maxHR} thresholdKmh=${thresholdKmh} unit=${unit}
-    onExit=${()=>setMode("detail")} onFinish=${()=>{save(true);setMode("detail");}}/>`;
+    onExit=${()=>setMode("detail")} onFinish=${(extra)=>{
+      if (extra) { if (extra.rpe !== undefined) setRpe(extra.rpe); if (extra.feeling !== undefined) setFeeling(extra.feeling); }
+      save(true, extra); setMode("detail");
+    }}/>`;
 
   return html`
     <div>
@@ -1414,6 +2147,8 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
       ${session.optional && html`<span style=${{display:"inline-block",fontSize:12,background:"var(--color-background-info)",color:"var(--color-text-info)",padding:"2px 10px",borderRadius:6,marginBottom:8}}>Valgfri</span>`}
       <p style=${{margin:"0 0 16px",fontSize:14,color:"var(--color-text-secondary)"}}>${segmentSummary(session)} · ca. ${sessionMinutes(session)} min</p>
 
+      ${!done && isHardSession(session) && html`<${ReadinessBanner} readiness=${readiness}/>`}
+
       <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:14}}>
         <${SegmentList} session=${session} maxHR=${maxHR} thresholdKmh=${thresholdKmh} unit=${unit}/>
       </div>
@@ -1424,7 +2159,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
 
       <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:14}}>
         <p style=${{margin:"0 0 14px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Logg økten</p>
-        ${stravaConnected && html`
+        ${!isStrength && stravaConnected && html`
           <div style=${{marginBottom:14}}>
             <button onClick=${hentStrava} disabled=${sBusy} style=${{width:"100%",padding:"11px",fontSize:14,background:"#FC4C02",color:"#fff",border:"none"}}>
               <i class="ti ti-brand-strava"></i> ${sBusy ? "Henter…" : "Hent fra Strava"}
@@ -1435,7 +2170,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
               ${picks.map(a=>html`<button key=${a.id} onClick=${()=>useActivity(a)} style=${{display:"block",width:"100%",textAlign:"left",padding:"9px 12px",fontSize:13,marginBottom:6}}>${a.name} · ${(a.distance/1000).toFixed(2)} km</button>`)}
             </div>`}
           </div>`}
-        ${(() => {
+        ${!isStrength && (() => {
           const p = sessionPaces(session);
           const easyLabel = p.easy ? cap(iLabel(p.easy)) : "Fart";
           return p.work
@@ -1452,6 +2187,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
             ${dist ? html`<span><i class="ti ti-ruler-2" style=${{fontSize:14,verticalAlign:"-2px"}}></i> ${(dist/1000).toFixed(2)} km${movTime?` · ${Math.round(movTime/60)} min`:""}</span>` : ""}
             ${(workHr||easyHr) ? html`<span><i class="ti ti-heartbeat" style=${{fontSize:14,verticalAlign:"-2px",color:"#ff3b30"}}></i> Puls ${workHr?`løp ${workHr}`:""}${workHr&&easyHr?" · ":""}${easyHr?`gange ${easyHr}`:""}</span>` : ""}
           </div>`}
+        <${RpePicker} rpe=${rpe} setRpe=${setRpe} feeling=${feeling} setFeeling=${setFeeling}/>
         <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Dato</label>
         <input type="date" value=${doneDate} onChange=${e=>setDoneDate(e.target.value)} style=${{width:"100%",marginBottom:14,boxSizing:"border-box"}}/>
         <textarea ref=${noteRef} value=${note} onInput=${e=>setNote(e.target.value)} placeholder="Notat (hvordan føltes det?)" rows="2"
@@ -1465,6 +2201,20 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
             `}
         </div>
       </div>
+
+      ${(() => {
+        const paste = stravaPasteText(session, { threshold_kmh: thr, easy_kmh: easy }, thresholdKmh);
+        if (!paste) return null;
+        return html`
+          <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px 18px",marginBottom:14}}>
+            <p style=${{margin:"0 0 8px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Strava-beskrivelse</p>
+            <p style=${{margin:"0 0 10px",fontSize:13,lineHeight:1.5,color:"var(--color-text-secondary)",userSelect:"text",WebkitUserSelect:"text"}}>${paste}</p>
+            <button onClick=${async()=>{ try { await navigator.clipboard.writeText(paste); setCopied(true); setTimeout(()=>setCopied(false),2000); } catch {} }} style=${{width:"100%",padding:"10px",fontSize:13}}>
+              <i class=${copied ? "ti ti-check" : "ti ti-copy"}></i> ${copied ? "Kopiert!" : "Kopier til Strava"}
+            </button>
+            ${!thr && !easy && html`<p style=${{margin:"8px 0 0",fontSize:11,color:"var(--color-text-tertiary)"}}>Farten merket «(mål)» byttes til faktisk fart når du henter økten fra Strava eller fyller inn fart.</p>`}
+          </div>`;
+      })()}
 
       ${week.coachNote && html`
         <div style=${{background:"var(--color-background-info)",borderRadius:"var(--border-radius-lg)",padding:"16px 18px",marginBottom:14}}>
@@ -1515,27 +2265,50 @@ function WeekView({ week, log, onBack, onOpen }) {
   `;
 }
 
-function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnectStrava, onDisconnectStrava }) {
+function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnectStrava, onDisconnectStrava,
+                       programs, progTab, setProgTab, onOpenBuilder, onDeleteProgram,
+                       readiness, whoopConnected, onManualCheck, onConnectWhoop, onDisconnectWhoop,
+                       notifyOn, onToggleNotify }) {
+  const custom = progTab !== "builtin" ? programs.find(p => p.id === progTab) : null;
+  const weeks = custom ? ((custom.program_json && custom.program_json.weeks) || []) : PROGRAM.weeks;
+  const sessions = custom ? programSessions(custom) : allSessions();
+  const activeProgram = programs.find(p => p.active) || null;
   // Neste økt = første ikke-gjorte, ikke-valgfrie økt
-  const next = allSessions().find(s => !s.optional && !(log[s.id] && log[s.id].done));
-  const totalDone = allSessions().filter(s => log[s.id] && log[s.id].done).length;
+  const next = sessions.find(s => !s.optional && !(log[s.id] && log[s.id].done));
+  const totalDone = sessions.filter(s => log[s.id] && log[s.id].done).length;
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const progLabel = p => `${(GOAL_META[p.goal] || { label: p.goal }).label} · ${((p.program_json && p.program_json.weeksCount) || (p.program_json && p.program_json.weeks || []).length)} uker`;
 
   return html`
     <div>
+      ${programs.length > 0 && html`
+        <div style=${{display:"flex",gap:8,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
+          ${[["builtin","12-ukers"], ...programs.map(p=>[p.id, progLabel(p)])].map(([id,label])=>html`
+            <button key=${id} onClick=${()=>setProgTab(id)} style=${{
+              flexShrink:0,padding:"8px 14px",fontSize:13,fontWeight:progTab===id?600:400,borderRadius:20,
+              background:progTab===id?"#1D9E75":"var(--color-background-primary)",color:progTab===id?"#fff":"var(--color-text-primary)",
+              border:progTab===id?"none":"0.5px solid var(--color-border-tertiary)"}}>${label}</button>`)}
+        </div>`}
+
+      <${ReadinessCard} readiness=${readiness} whoopConnected=${whoopConnected}
+        onManualCheck=${onManualCheck} onConnectWhoop=${onConnectWhoop} onDisconnectWhoop=${onDisconnectWhoop}/>
+      <${MotivationCard} log=${log} activeProgram=${activeProgram}/>
+      ${custom && html`<${WeekCalendar} program=${custom} log=${log} onOpen=${onOpenSession}/>`}
+
       ${next && html`
         <button onClick=${()=>onOpenSession(next)} style=${{
           width:"100%",textAlign:"left",cursor:"pointer",border:"none",
           background:"linear-gradient(135deg,#1D9E75,#178a64)",color:"#fff",
           borderRadius:"var(--border-radius-lg)",padding:"18px 20px",marginBottom:18}}>
           <p style=${{margin:"0 0 4px",fontSize:12,opacity:0.85,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:500}}>Neste økt</p>
-          <p style=${{margin:"0 0 4px",fontSize:17,fontWeight:600}}>Uke ${next.week} · ${next.plannedDay}</p>
+          <p style=${{margin:"0 0 4px",fontSize:17,fontWeight:600}}>Uke ${next.week} · ${next.plannedDay}${next.plannedDate ? ` ${(d=>`${d.getDate()}.${d.getMonth()+1}`)(parseKey(next.plannedDate))}` : ""}${next.type === "strength" ? " · Styrke" : ""}</p>
           <p style=${{margin:0,fontSize:13,opacity:0.9,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${segmentSummary(next)}</p>
         </button>`}
 
       <p style=${{margin:"0 0 12px",fontSize:12,color:"var(--color-text-secondary)"}}>${totalDone} økter fullført totalt</p>
 
       <div style=${{display:"flex",flexDirection:"column",gap:10}}>
-        ${PROGRAM.weeks.map(w => {
+        ${weeks.map(w => {
           const dc = w.sessions.filter(s => log[s.id] && log[s.id].done).length;
           const complete = dc === w.sessions.length;
           return html`
@@ -1556,13 +2329,47 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
         })}
       </div>
 
-      <div style=${{marginTop:18,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
-        <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)"}}>${PROGRAM.generalNotes.oppsett}</p>
-        ${PROGRAM.generalNotes.regler.map((r,i)=>html`
-          <div key=${i} style=${{marginTop:10}}>
-            <p style=${{margin:"0 0 2px",fontSize:13,fontWeight:600,color:"var(--color-text-info)"}}>${r.tittel}</p>
-            <p style=${{margin:0,fontSize:13,lineHeight:1.55,color:"var(--color-text-secondary)"}}>${r.tekst}</p>
-          </div>`)}
+      <button onClick=${onOpenBuilder} style=${{width:"100%",marginTop:14,padding:"14px",fontSize:15,background:"var(--color-background-primary)",border:"1px dashed var(--color-border-secondary)"}}>
+        <i class="ti ti-wand"></i> Bygg eget program
+      </button>
+
+      ${!custom && html`
+        <div style=${{marginTop:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
+          <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)"}}>${PROGRAM.generalNotes.oppsett}</p>
+          ${PROGRAM.generalNotes.regler.map((r,i)=>html`
+            <div key=${i} style=${{marginTop:10}}>
+              <p style=${{margin:"0 0 2px",fontSize:13,fontWeight:600,color:"var(--color-text-info)"}}>${r.tittel}</p>
+              <p style=${{margin:0,fontSize:13,lineHeight:1.55,color:"var(--color-text-secondary)"}}>${r.tekst}</p>
+            </div>`)}
+        </div>`}
+
+      ${custom && html`
+        <div style=${{marginTop:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
+          <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Om programmet</p>
+          <p style=${{margin:"0 0 8px",fontSize:13,lineHeight:1.6,color:"var(--color-text-secondary)"}}>
+            ${progLabel(custom)}${custom.goal_date ? ` · løpsdag ${custom.goal_date}` : ""} · ${custom.runs_per_week} løpeøkter/uke${custom.strength_per_week ? ` + ${custom.strength_per_week} styrke` : ""} ·
+            ${custom.periodization === "flat" ? " flat struktur" : custom.periodization === "blokk" ? " blokk (2 harde + 1 lett)" : " progressiv X-økt"}${custom.level_kmh ? ` · terskelfart ved start: ${custom.level_kmh} km/t` : ""}
+          </p>
+          <p style=${{margin:"0 0 2px",fontSize:13,fontWeight:600,color:"var(--color-text-info)"}}>Når tiden ikke strekker til</p>
+          <p style=${{margin:"0 0 8px",fontSize:13,lineHeight:1.55,color:"var(--color-text-secondary)"}}>Prioriter i denne rekkefølgen: 1) hovedkvalitetsøkt, 2) støtteøkt, 3) langtur (kan kortes), 4) rolige økter. Minimum én terskeløkt i uken.</p>
+          <p style=${{margin:"0 0 2px",fontSize:13,fontWeight:600,color:"var(--color-text-info)"}}>Ved overtrening</p>
+          <p style=${{margin:"0 0 12px",fontSize:13,lineHeight:1.55,color:"var(--color-text-secondary)"}}>Reduser intensitet, ikke volum – behold rolig løping, bruk 45/15 og 30/30 for å stimulere muskulaturen tilbake. Ved overskudd over tid: legg på volum, ikke intensitet.</p>
+          ${confirmDelete
+            ? html`<div style=${{display:"flex",gap:8}}>
+                <button onClick=${()=>{ setConfirmDelete(false); onDeleteProgram(custom.id); }} style=${{flex:1,padding:"11px",fontSize:14,background:"#ff3b30",color:"#fff",border:"none"}}>Ja, slett programmet</button>
+                <button onClick=${()=>setConfirmDelete(false)} style=${{flex:1,padding:"11px",fontSize:14}}>Avbryt</button>
+              </div>`
+            : html`<button onClick=${()=>setConfirmDelete(true)} style=${{width:"100%",padding:"11px",fontSize:13,color:"var(--color-text-secondary)"}}><i class="ti ti-trash"></i> Slett dette programmet</button>`}
+        </div>`}
+
+      <div style=${{marginTop:14,padding:"14px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <p style=${{margin:0,fontSize:14,fontWeight:500}}><i class="ti ti-bell"></i> Påminnelser</p>
+          <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>Varsel når du åpner appen en dag med planlagt økt</p>
+        </div>
+        <button onClick=${onToggleNotify} style=${{width:52,height:30,borderRadius:15,padding:0,position:"relative",background:notifyOn?"#1D9E75":"var(--color-border-secondary)",border:"none",flexShrink:0}}>
+          <span style=${{position:"absolute",top:3,left:notifyOn?25:3,width:24,height:24,borderRadius:"50%",background:"#fff",transition:"left 0.15s"}}></span>
+        </button>
       </div>
 
       <div style=${{marginTop:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
@@ -1582,8 +2389,8 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
   `;
 }
 
-function StatsView({ log, unit }) {
-  const sessions = allSessions();
+function StatsView({ log, unit, extraSessions }) {
+  const sessions = [...allSessions(), ...(extraSessions || [])];
   const doneAll = sessions.filter(s => log[s.id] && log[s.id].done);
   const withThr = doneAll.map(s => ({ s, r: log[s.id] }))
     .filter(x => x.r.threshold_kmh != null)
@@ -1601,11 +2408,11 @@ function StatsView({ log, unit }) {
     return { p, total, done };
   });
 
-  const notes = allSessions().map(s=>({ s, r: log[s.id] }))
-    .filter(x => x.r && x.r.note)
+  const notes = sessions.map(s=>({ s, r: log[s.id] }))
+    .filter(x => x.r && (x.r.note || x.r.rpe != null || x.r.feeling))
     .sort((a,b)=> parseKey(b.r.done_date||todayKey()) - parseKey(a.r.done_date||todayKey()));
 
-  const hrPoints = allSessions().map(s=>({ s, r: log[s.id] }))
+  const hrPoints = sessions.map(s=>({ s, r: log[s.id] }))
     .filter(x => x.r && x.r.done && x.r.work_hr != null)
     .sort((a,b)=> parseKey(a.r.done_date||todayKey()) - parseKey(b.r.done_date||todayKey()))
     .map(x => ({ hr: x.r.work_hr, date: x.r.done_date }));
@@ -1673,10 +2480,11 @@ function StatsView({ log, unit }) {
           ${notes.map((x,i)=>html`
             <div key=${x.s.id} style=${{padding:"10px 0",borderTop:i===0?"none":"0.5px solid var(--color-border-tertiary)"}}>
               <div style=${{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
-                <span style=${{fontSize:13,fontWeight:500}}>Uke ${x.s.week} · ${x.s.plannedDay}</span>
+                <span style=${{fontSize:13,fontWeight:500}}>Uke ${x.s.week} · ${x.s.plannedDay}${x.s.type==="strength"?" · Styrke":""}</span>
                 <span style=${{fontSize:12,color:"var(--color-text-tertiary)",flexShrink:0}}>${x.r.done_date||""}</span>
               </div>
-              <p style=${{margin:"3px 0 0",fontSize:13,lineHeight:1.5,color:"var(--color-text-secondary)"}}>${x.r.note}</p>
+              ${(x.r.rpe != null || x.r.feeling) && html`<p style=${{margin:"3px 0 0",fontSize:12,color:"var(--color-text-tertiary)"}}>${x.r.rpe != null ? `RPE ${x.r.rpe}` : ""}${x.r.rpe != null && x.r.feeling ? " · " : ""}${x.r.feeling ? `føltes ${x.r.feeling}` : ""}</p>`}
+              ${x.r.note && html`<p style=${{margin:"3px 0 0",fontSize:13,lineHeight:1.5,color:"var(--color-text-secondary)"}}>${x.r.note}</p>`}
             </div>`)}
         </div>`}
     </div>
@@ -1810,6 +2618,14 @@ function App() {
   const [pThr, setPThr] = useState(null);
   const [pMaxHR, setPMaxHR] = useState(null);
   const [stravaConnected, setStravaConnected] = useState(false);
+  const [profile, setProfile] = useState({});
+  const [programs, setPrograms] = useState([]);
+  const [progTab, setProgTab] = useState("builtin");
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [showManualCheck, setShowManualCheck] = useState(false);
+  const [readiness, setReadiness] = useState(null);
+  const [whoopConnected, setWhoopConnected] = useState(false);
+  const [notifyOn, setNotifyOnState] = useState(() => localStorage.getItem("lp_notify") === "1");
 
   useEffect(() => {
     const body = document.body;
@@ -1830,14 +2646,43 @@ function App() {
     setLog(await loadLog()); setReady(true);
     try {
       const p = await loadProfile();
+      setProfile(p);
       setThresholdKmh(p.threshold_kmh ?? null);
       setMaxHR(p.max_hr ?? null);
     } catch {}
     try {
-      const code = new URLSearchParams(location.search).get("code");
-      if (code) { await stravaCall({ action:"exchange", code }); history.replaceState({}, "", location.pathname); }
+      const progs = await loadPrograms();
+      setPrograms(progs);
+      const act = progs.find(p => p.active);
+      if (act) setProgTab(act.id);
+    } catch {}
+    try {
+      const params = new URLSearchParams(location.search);
+      const code = params.get("code");
+      if (code) {
+        // state-parameteret skiller Whoop-retur fra Strava-retur (samme redirect-URI)
+        if ((params.get("state") || "").startsWith("whoop")) await whoopCall({ action:"exchange", code, redirect: location.origin + location.pathname });
+        else await stravaCall({ action:"exchange", code });
+        history.replaceState({}, "", location.pathname);
+      }
       const st = await stravaCall({ action:"status" });
       setStravaConnected(!!(st && st.connected));
+    } catch {}
+    try {
+      const wst = await whoopCall({ action:"status" });
+      const wConn = !!(wst && wst.connected);
+      setWhoopConnected(wConn);
+      let r = await loadTodayReadiness();
+      // Whoop-recovery hentes daglig og overstyrer manuell sjekk (auto foran fallback)
+      if (wConn && (!r || r.source !== "whoop")) {
+        const rec = await whoopCall({ action:"recovery" });
+        if (rec && rec.score != null) {
+          r = { day: todayKey(), source: "whoop", color: recoveryColor(rec.score),
+                recovery_score: rec.score, hrv: rec.hrv ?? null, resting_hr: rec.resting_hr ?? null, sleep_pct: rec.sleep_pct ?? null };
+          try { await saveReadiness(r); } catch {}
+        }
+      }
+      setReadiness(r);
     } catch {}
   })(); } },[session]);
   const saveProfileFields = async (patch) => {
@@ -1845,12 +2690,47 @@ function App() {
     setThresholdKmh(next.threshold_kmh); setMaxHR(next.max_hr);
     setSyncing(true); await saveProfile(next); setSyncing(false);
   };
-  const logout = async ()=>{ await db.auth.signOut(); setLog({}); setReady(false); setView({name:"list"}); setTab("program"); setStravaConnected(false); setThresholdKmh(null); setMaxHR(null); };
+  const logout = async ()=>{ await db.auth.signOut(); setLog({}); setReady(false); setView({name:"list"}); setTab("program"); setStravaConnected(false); setThresholdKmh(null); setMaxHR(null); setProfile({}); setPrograms([]); setProgTab("builtin"); setReadiness(null); setWhoopConnected(false); };
   const connectStrava = () => {
     const redirect = location.origin + location.pathname;
     location.href = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirect)}&response_type=code&approval_prompt=auto&scope=activity:read_all`;
   };
   const disconnectStrava = async () => { await stravaCall({ action:"disconnect" }); setStravaConnected(false); };
+  const connectWhoop = async () => {
+    const r = await whoopCall({ action:"auth_url", redirect: location.origin + location.pathname });
+    if (r && r.url) location.href = r.url;
+  };
+  const disconnectWhoop = async () => { await whoopCall({ action:"disconnect" }); setWhoopConnected(false); };
+  const toggleNotify = async () => {
+    if (!notifyOn) {
+      try { if ("Notification" in window && Notification.permission !== "granted") await Notification.requestPermission(); } catch {}
+    }
+    const v = !notifyOn;
+    setNotifyOnState(v); localStorage.setItem("lp_notify", v ? "1" : "0");
+  };
+  const refreshPrograms = async (selectId) => {
+    const progs = await loadPrograms();
+    setPrograms(progs);
+    if (selectId) setProgTab(selectId);
+    else if (progTab !== "builtin" && !progs.find(p => p.id === progTab)) setProgTab("builtin");
+  };
+  const removeProgram = async (id) => { await deleteProgramRow(id); await refreshPrograms(); setView({ name:"list" }); };
+
+  // A4: lokalt varsel når appen åpnes en dag med planlagt økt i aktivt generert program
+  useEffect(() => {
+    if (!ready || !notifyOn) return;
+    try {
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      const act = programs.find(p => p.active);
+      if (!act) return;
+      const today = todayKey();
+      const s = programSessions(act).find(x => x.plannedDate === today && !(log[x.id] && log[x.id].done));
+      if (s && sessionStorage.getItem("lp_notified") !== today) {
+        sessionStorage.setItem("lp_notified", today);
+        new Notification("Løpeprogram", { body: `I dag: ${s.type === "strength" ? `styrkeøkt (ca. ${sessionMinutes(s)} min)` : segmentSummary(s)}` });
+      }
+    } catch {}
+  }, [ready, notifyOn, programs]);
 
   const saveRec = async (row) => {
     setLog(l => ({ ...l, [row.session_id]: { ...l[row.session_id], ...row } }));
@@ -1862,21 +2742,33 @@ function App() {
     setView({ name: "list" });
   };
 
-  const openWeek = (wk) => setView({ name: "week", week: wk });
-  const openSession = (s) => setView({ name: "session", week: s.week, sessionId: s.id });
+  const openWeek = (wk) => setView({ name: "week", week: wk, prog: progTab });
+  const openSession = (s) => setView({ name: "session", week: s.week, sessionId: s.id, prog: s.programId || progTab });
 
-  const weekObj = (wk) => PROGRAM.weeks.find(w => w.week === wk);
-  const sessionObj = (wk, id) => { const w = weekObj(wk); const s = w.sessions.find(x=>x.id===id); return s ? { ...s, week: wk } : null; };
+  const progWeeks = (prog) => {
+    if (!prog || prog === "builtin") return PROGRAM.weeks;
+    const p = programs.find(x => x.id === prog);
+    return p ? ((p.program_json && p.program_json.weeks) || []) : [];
+  };
+  const weekObj = (wk, prog) => progWeeks(prog).find(w => w.week === wk);
+  const sessionObj = (wk, id, prog) => {
+    const w = weekObj(wk, prog); if (!w) return null;
+    const s = w.sessions.find(x => x.id === id);
+    return s ? { ...s, week: wk, programId: prog && prog !== "builtin" ? prog : null } : null;
+  };
 
   if (!authReady) return html`<div style=${{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--color-text-secondary)"}}>Laster…</div>`;
   if (!session) return html`<${LoginScreen}/>`;
 
   let body;
   if (!ready) body = html`<p style=${{color:"var(--color-text-secondary)",textAlign:"center",paddingTop:40}}>Laster...</p>`;
-  else if (tab === "stats") body = html`<${StatsView} log=${log} unit=${unit}/>`;
-  else if (view.name === "week") body = html`<${WeekView} key=${"w"+view.week} week=${weekObj(view.week)} log=${log} onBack=${()=>setView({name:"list"})} onOpen=${openSession}/>`;
-  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId)} week=${weekObj(view.week)} log=${log} unit=${unit} voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI} stravaConnected=${stravaConnected} maxHR=${maxHR} thresholdKmh=${thresholdKmh} onBack=${()=>setView({name:"week",week:view.week})} onSave=${saveRec} onDelete=${deleteRec}/>`;
-  else body = html`<${ProgramView} log=${log} onOpenWeek=${openWeek} onOpenSession=${openSession} stravaConnected=${stravaConnected} onConnectStrava=${connectStrava} onDisconnectStrava=${disconnectStrava}/>`;
+  else if (tab === "stats") body = html`<${StatsView} log=${log} unit=${unit} extraSessions=${programs.flatMap(p=>programSessions(p))}/>`;
+  else if (view.name === "week") body = html`<${WeekView} key=${"w"+(view.prog||"b")+view.week} week=${weekObj(view.week, view.prog)} log=${log} onBack=${()=>setView({name:"list"})} onOpen=${openSession}/>`;
+  else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId, view.prog)} week=${weekObj(view.week, view.prog)} log=${log} unit=${unit} voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI} stravaConnected=${stravaConnected} maxHR=${maxHR} thresholdKmh=${thresholdKmh} readiness=${readiness} onBack=${()=>setView({name:"week",week:view.week,prog:view.prog})} onSave=${saveRec} onDelete=${deleteRec}/>`;
+  else body = html`<${ProgramView} log=${log} onOpenWeek=${openWeek} onOpenSession=${openSession} stravaConnected=${stravaConnected} onConnectStrava=${connectStrava} onDisconnectStrava=${disconnectStrava}
+    programs=${programs} progTab=${progTab} setProgTab=${setProgTab} onOpenBuilder=${()=>setShowBuilder(true)} onDeleteProgram=${removeProgram}
+    readiness=${readiness} whoopConnected=${whoopConnected} onManualCheck=${()=>setShowManualCheck(true)} onConnectWhoop=${connectWhoop} onDisconnectWhoop=${disconnectWhoop}
+    notifyOn=${notifyOn} onToggleNotify=${toggleNotify}/>`;
 
   const title = tab==="stats" ? "Statistikk" : "Løpeprogram";
 
@@ -1939,7 +2831,12 @@ function App() {
               ["ti-chart-line","Statistikk","Viser utvikling i fart og puls over tid, hentet fra det du har loggført eller fra Strava."],
               ["ti-brand-strava","Strava","Koble til Strava under Program-fanen for å hente fart og puls automatisk fra aktiviteten din i stedet for å taste inn selv."],
               ["ti-heartbeat","Gylne sonen","Fyll inn terskelfart og makspuls under hjerte-ikonet, så viser hver økt hvilken puls du bør ligge på for intensiteten (f.eks. terskel = 80-87% av makspuls, boken kaller det «den gylne sonen»)."],
-              ["ti-bolt","Fartskalkulator","Intervall-drag viser også en anbefalt fart-range, regnet ut fra terskelfarten din og draglengden – jo lengre drag, jo roligere fart."],
+              ["ti-bolt","Fartskalkulator","Intervall-drag viser også en anbefalt fart-range, regnet ut fra terskelfarten din og draglengden – jo lengre drag, jo roligere fart. I egne bygde program brukes bokas sek/km-tempoguide i stedet."],
+              ["ti-wand","Bygg eget program","Etter (eller ved siden av) 12-ukers-programmet kan du bygge ditt eget: velg mål, dato, økter per uke og periodisering, så genereres et program etter bokas modell (80/20, tre nøkkeløkter, 10 % volumtrapp og nedtrapping mot løpsdag)."],
+              ["ti-traffic-lights","Trafikklys","Dagsformen vises som grønt/gult/rødt lys – automatisk fra Whoop recovery (grønn ≥ 67 %) eller via en manuell 30-sek sjekk. Grønt: forleng nøkkeløkten 30-40 %. Gult: som planlagt. Rødt: hopp av, ta en dag fri. Og husk: ryker en økt, ikke ta den igjen – styr fremover."],
+              ["ti-barbell","Styrke","Egne program kan inkludere 0-2 styrkeøkter/uke (anbefales ut fra alder og skadehistorikk). Øktene guides av samme timer med stemme: Myrtl-oppvarming + enbens-styrkeøvelser."],
+              ["ti-copy","Strava-tekst","Hver økt har en ferdig beskrivelse («5 min oppvarming, 8 x 5 min terskel @ 4:10 …») du kan kopiere rett inn i Strava. Farten er den du faktisk løp når økten er hentet fra Strava."],
+              ["ti-bell","Påminnelser","Skru på påminnelser på Program-fanen, så varsler appen når du åpner den en dag med planlagt økt."],
               ["ti-moon","Tema og enhet","Månen øverst bytter mellom lyst/mørkt/system-tema. Knappen med km/t eller min/km bytter hvilken enhet fart vises i."],
             ].map(([icon,title,text])=>html`
               <div style=${{display:"flex",gap:12,marginBottom:16}}>
@@ -1971,6 +2868,12 @@ function App() {
             <button onClick=${()=>setShowProfile(false)} style=${{width:"100%",padding:"12px",fontSize:14,color:"var(--color-text-secondary)"}}>Avbryt</button>
           </div>
         </div>`}
+      ${showBuilder && html`<${BuilderWizard} unit=${unit} thresholdKmh=${thresholdKmh} profile=${profile}
+        onClose=${()=>setShowBuilder(false)}
+        onCreated=${async(id)=>{ setShowBuilder(false); try { setProfile(await loadProfile()); } catch {} await refreshPrograms(id); setView({name:"list"}); }}/>`}
+      ${showManualCheck && html`<${ManualCheck} profile=${profile}
+        onClose=${()=>setShowManualCheck(false)}
+        onSaved=${async(row)=>{ setShowManualCheck(false); setReadiness(row); try { setProfile(await loadProfile()); } catch {} }}/>`}
     </div>
   `;
 }
