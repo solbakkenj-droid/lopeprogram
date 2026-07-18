@@ -2021,6 +2021,7 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
   const [placement, setPlacement] = useState("C");
   const [thr, setThr] = useState(thresholdKmh ?? null);
   const [period, setPeriod] = useState(null);
+  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const meta = goal ? GOAL_META[goal] : null;
@@ -2037,6 +2038,7 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
     setBusy(true); setErr("");
     const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const gen = generateProgram(opts(), id.slice(0,8));
+    gen.name = name.trim() || (meta ? meta.label : "Eget program"); // navnet lagres i program_json (ingen egen kolonne)
     try { await saveProfile({ birth_year: birthYear, injury_history: injury }); } catch {}
     const error = await insertProgram({ id, goal, goal_date: meta.race ? goalDate : null, runs_per_week: runs, strength_per_week: sVal, periodization: pVal, level_kmh: thr, program_json: gen, active: true });
     setBusy(false);
@@ -2138,6 +2140,11 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
             <b style=${{color:"var(--color-text-primary)"}}>${s.plannedDay}:</b> ${s.type==="strength" ? `Styrke (ca. ${sessionMinutes(s)} min)` : segmentSummary(s)}
           </p>`)}
       </div>`}
+      <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Navn på programmet</label>
+      <input type="text" value=${name} onInput=${e=>setName(e.target.value)} maxlength="40"
+        placeholder=${meta ? `f.eks. ${meta.label}` : "f.eks. Oslo Maraton"}
+        style=${{width:"100%",boxSizing:"border-box",marginBottom:4}}/>
+      <p style=${{margin:"0 0 12px",fontSize:12,color:"var(--color-text-tertiary)"}}>Typisk navnet på løpet eller målet. Står tomt? Da brukes «${meta ? meta.label : "Eget program"}».</p>
       ${err && html`<p style=${{margin:"0 0 10px",fontSize:13,color:"#ff3b30"}}>${err}</p>`}
       <button onClick=${create} disabled=${busy} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15}}>${busy ? "Lagrer…" : "Opprett program"}</button>
     </div>`;
@@ -2388,7 +2395,9 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
   const next = sessions.find(s => !s.optional && !(log[s.id] && log[s.id].done));
   const totalDone = sessions.filter(s => log[s.id] && log[s.id].done).length;
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const progLabel = p => `${(GOAL_META[p.goal] || { label: p.goal }).label} · ${((p.program_json && p.program_json.weeksCount) || (p.program_json && p.program_json.weeks || []).length)} uker`;
+  const progLabel = p => (p.program_json && p.program_json.name && p.program_json.name.trim())
+    ? p.program_json.name.trim()
+    : `${(GOAL_META[p.goal] || { label: p.goal }).label} · ${((p.program_json && p.program_json.weeksCount) || (p.program_json && p.program_json.weeks || []).length)} uker`;
 
   return html`
     <div>
@@ -2458,7 +2467,7 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
         <div style=${{marginTop:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
           <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Om programmet</p>
           <p style=${{margin:"0 0 8px",fontSize:13,lineHeight:1.6,color:"var(--color-text-secondary)"}}>
-            ${progLabel(custom)}${custom.goal_date ? ` · løpsdag ${custom.goal_date}` : ""} · ${custom.runs_per_week} løpeøkter/uke${custom.strength_per_week ? ` + ${custom.strength_per_week} styrke` : ""} ·
+            ${(GOAL_META[custom.goal] || { label: custom.goal }).label} · ${(custom.program_json && custom.program_json.weeksCount) || ((custom.program_json && custom.program_json.weeks) || []).length} uker${custom.goal_date ? ` · løpsdag ${custom.goal_date}` : ""} · ${custom.runs_per_week} løpeøkter/uke${custom.strength_per_week ? ` + ${custom.strength_per_week} styrke` : ""} ·
             ${custom.periodization === "flat" ? " flat struktur" : custom.periodization === "blokk" ? " blokk (2 harde + 1 lett)" : " progressiv X-økt"}${custom.level_kmh ? ` · terskelfart ved start: ${custom.level_kmh} km/t` : ""}
           </p>
           <p style=${{margin:"0 0 2px",fontSize:13,fontWeight:600,color:"var(--color-text-info)"}}>Når tiden ikke strekker til</p>
