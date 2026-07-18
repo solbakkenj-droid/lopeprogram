@@ -2717,6 +2717,35 @@ function LoginScreen() {
     </div>`;
 }
 
+// ─── VELKOMST (førstegangsvalg for nye brukere) ──────────────────────────────
+function WelcomeScreen({ onChooseBuiltin, onBuildOwn, busy }) {
+  return html`
+    <div style=${{position:"fixed",inset:0,zIndex:1500,background:"var(--color-background-secondary)",overflowY:"auto",display:"flex",flexDirection:"column",alignItems:"center",padding:"32px 20px 40px",boxSizing:"border-box"}}>
+      <div style=${{maxWidth:440,width:"100%",margin:"auto 0"}}>
+        <p style=${{margin:"0 0 6px",fontSize:13,fontWeight:600,color:"#1D9E75",textTransform:"uppercase",letterSpacing:"0.1em"}}>Velkommen</p>
+        <p style=${{margin:"0 0 6px",fontSize:24,fontWeight:700,lineHeight:1.2}}>Hvordan vil du komme i gang?</p>
+        <p style=${{margin:"0 0 24px",fontSize:14,color:"var(--color-text-secondary)",lineHeight:1.5}}>Velg et startpunkt. Du kan bygge flere program senere – begge er alltid tilgjengelige inne i appen.</p>
+
+        <button onClick=${onChooseBuiltin} disabled=${busy} style=${{
+          width:"100%",textAlign:"left",cursor:"pointer",border:"none",marginBottom:14,
+          background:"linear-gradient(135deg,#1D9E75,#178a64)",color:"#fff",
+          borderRadius:"var(--border-radius-lg)",padding:"20px 22px"}}>
+          <p style=${{margin:"0 0 6px",fontSize:18,fontWeight:600,display:"flex",alignItems:"center",gap:9}}><i class="ti ti-run" style=${{fontSize:20}}></i> 12-ukers-programmet</p>
+          <p style=${{margin:0,fontSize:13.5,opacity:0.92,lineHeight:1.5}}>For nybegynnere og for å komme tilbake fra skade. Et ferdig løp fra boka: 12 uker, tre økter i uka, guidet med stemme.</p>
+        </button>
+
+        <button onClick=${onBuildOwn} disabled=${busy} style=${{
+          width:"100%",textAlign:"left",cursor:"pointer",
+          background:"var(--color-background-primary)",color:"var(--color-text-primary)",
+          border:"0.5px solid var(--color-border-tertiary)",
+          borderRadius:"var(--border-radius-lg)",padding:"20px 22px"}}>
+          <p style=${{margin:"0 0 6px",fontSize:18,fontWeight:600,display:"flex",alignItems:"center",gap:9}}><i class="ti ti-wand" style=${{fontSize:20,color:"#1D9E75"}}></i> Bygg eget program</p>
+          <p style=${{margin:0,fontSize:13.5,color:"var(--color-text-secondary)",lineHeight:1.5}}>Velg mål, dato, økter per uke og periodisering, så lager appen et program etter bokas modell (80/20, tre nøkkeløkter, volumtrapp og nedtrapping mot løpsdag).</p>
+        </button>
+      </div>
+    </div>`;
+}
+
 // ─── APP ──────────────────────────────────────────────────────────────────────
 function App() {
   const [tab, setTab] = useState("program");    // program | stats
@@ -2743,6 +2772,7 @@ function App() {
   const [profile, setProfile] = useState({});
   const [programs, setPrograms] = useState([]);
   const [progTab, setProgTab] = useState("builtin");
+  const [choosing, setChoosing] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
   const [showManualCheck, setShowManualCheck] = useState(false);
   const [readiness, setReadiness] = useState(null);
@@ -2837,6 +2867,18 @@ function App() {
     else if (progTab !== "builtin" && !progs.find(p => p.id === progTab)) setProgTab("builtin");
   };
   const removeProgram = async (id) => { await deleteProgramRow(id); await refreshPrograms(); setView({ name:"list" }); };
+
+  // Førstegangsvalg: ny bruker uten valgt vei, uten loggede økter og uten egne program
+  const needsChoice = ready && !profile.program_choice
+    && Object.keys(log).length === 0 && programs.length === 0;
+  const chooseBuiltin = async () => {
+    setChoosing(true);
+    try { await saveProfile({ program_choice: "builtin" }); } catch {}
+    setProfile(p => ({ ...p, program_choice: "builtin" }));
+    setProgTab("builtin"); setView({ name: "list" });
+    setChoosing(false);
+  };
+  const chooseBuildOwn = () => setShowBuilder(true);
 
   // A4: lokalt varsel når appen åpnes en dag med planlagt økt i aktivt generert program
   useEffect(() => {
@@ -2992,7 +3034,8 @@ function App() {
         </div>`}
       ${showBuilder && html`<${BuilderWizard} unit=${unit} thresholdKmh=${thresholdKmh} profile=${profile}
         onClose=${()=>setShowBuilder(false)}
-        onCreated=${async(id)=>{ setShowBuilder(false); try { setProfile(await loadProfile()); } catch {} await refreshPrograms(id); setView({name:"list"}); }}/>`}
+        onCreated=${async(id)=>{ if(!profile.program_choice){ setProfile(p=>({...p,program_choice:"custom"})); try { await saveProfile({ program_choice: "custom" }); } catch {} } setShowBuilder(false); try { setProfile(await loadProfile()); } catch {} await refreshPrograms(id); setView({name:"list"}); }}/>`}
+      ${needsChoice && html`<${WelcomeScreen} busy=${choosing} onChooseBuiltin=${chooseBuiltin} onBuildOwn=${chooseBuildOwn}/>`}
       ${showManualCheck && html`<${ManualCheck} profile=${profile}
         onClose=${()=>setShowManualCheck(false)}
         onSaved=${async(row)=>{ setShowManualCheck(false); setReadiness(row); try { setProfile(await loadProfile()); } catch {} }}/>`}
