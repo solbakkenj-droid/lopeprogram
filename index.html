@@ -71,7 +71,7 @@
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     textarea, input { font-family: var(--font-sans); color: var(--color-text-primary); background: transparent; }
     input[type="date"], input[type="number"], input[type="text"] { padding: 9px 12px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 15px; }
-    .btn-primary { background: #1D9E75 !important; color: #fff !important; border: none !important; }
+    .btn-primary { background: var(--color-accent) !important; color: #fff !important; border: none !important; }
     .btn-blue { background: #2563eb !important; color: #fff !important; border: none !important; }
 
     /* ── redesign: felles uttrykk (teknisk + minimalistisk) ── */
@@ -1666,7 +1666,7 @@ function GuidedSession({ session, choices, readiness, voiceOn, voiceURI, maxHR, 
 
   if (done) return html`
     <div style=${{textAlign:"center",padding:"32px 20px"}}>
-      <i class="ti ti-circle-check" style=${{fontSize:56,color:"#1D9E75",display:"block",marginBottom:16}}></i>
+      <i class="ti ti-circle-check" style=${{fontSize:56,color:"var(--color-accent)",display:"block",marginBottom:16}}></i>
       <h2 style=${{margin:"0 0 8px",fontSize:22,fontWeight:500}}>Økt fullført!</h2>
       <p style=${{color:"var(--color-text-secondary)",marginBottom:20}}>Hvordan var det? Svaret brukes i trafikklyset (10-dagers-regelen).</p>
       <div style=${{textAlign:"left",marginBottom:8}}>
@@ -1836,7 +1836,7 @@ function GuidedConfig({ session, readiness, voiceOn, setVoiceOn, voiceURI, setVo
             <p style=${{margin:0,fontSize:15,fontWeight:500}}><i class="ti ti-volume"></i> Stemme</p>
             <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>Sier øktene høyt, demper musikk</p>
           </div>
-          <button onClick=${()=>setVoiceOn(!voiceOn)} style=${{width:52,height:30,borderRadius:15,padding:0,position:"relative",background:voiceOn?"#1D9E75":"var(--color-border-secondary)",border:"none"}}>
+          <button onClick=${()=>setVoiceOn(!voiceOn)} style=${{width:52,height:30,borderRadius:15,padding:0,position:"relative",background:voiceOn?"var(--color-accent)":"var(--color-border-secondary)",border:"none"}}>
             <span style=${{position:"absolute",top:3,left:voiceOn?25:3,width:24,height:24,borderRadius:"50%",background:"#fff",transition:"left 0.15s"}}></span>
           </button>
         </div>
@@ -1872,7 +1872,7 @@ function RpePicker({ rpe, setRpe, feeling, setFeeling }) {
       <div style=${{display:"flex",gap:4}}>
         ${[1,2,3,4,5,6,7,8,9,10].map(n=>html`
           <button key=${n} onClick=${()=>setRpe(rpe===n?null:n)} style=${{flex:1,minWidth:0,padding:"7px 0",fontSize:13,fontWeight:rpe===n?700:400,
-            background:rpe===n?"#1D9E75":"var(--color-background-secondary)",color:rpe===n?"#fff":"var(--color-text-primary)",
+            background:rpe===n?"var(--color-accent)":"var(--color-background-secondary)",color:rpe===n?"#fff":"var(--color-text-primary)",
             border:rpe===n?"none":"0.5px solid var(--color-border-tertiary)"}}>${n}</button>`)}
       </div>
     </div>`;
@@ -1912,22 +1912,23 @@ function ManualCheck({ profile, onClose, onSaved }) {
   };
   return html`
     <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick=${onClose}>
-      <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",padding:"22px",maxWidth:380,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
-        <p style=${{margin:"0 0 4px",fontSize:18,fontWeight:600}}>30-sekunders dagsform-sjekk</p>
-        <p style=${{margin:"0 0 16px",fontSize:13,color:"var(--color-text-secondary)"}}>Bokas raske trafikklys-sjekk før nøkkeløkt (brukes når Whoop-data mangler). Alle gode = grønt, ett klart avvik = rødt.</p>
+      <div onClick=${e=>e.stopPropagation()} class="card" style=${{padding:"22px",maxWidth:380,width:"100%",maxHeight:"85vh",overflowY:"auto",overscrollBehavior:"contain"}}>
+        <p class="eyebrow" style=${{margin:"0 0 5px"}}>Dagsform</p>
+        <p style=${{margin:"0 0 4px",fontSize:19,fontWeight:600,letterSpacing:"-0.01em"}}>30-sekunders sjekk</p>
+        <p style=${{margin:"0 0 16px",fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>Bokas raske trafikklys-sjekk før nøkkeløkt (brukes når Whoop-data mangler). Alle gode = grønt, ett klart avvik = rødt.</p>
         ${rows.map(([label, val, setVal, names], i)=>html`
           <div key=${i} style=${{marginBottom:12}}>
             <label style=${{display:"block",fontSize:13,marginBottom:6}}>${label}</label>
             <div style=${{display:"flex",gap:6}}>
               ${OPTS.map((o,j)=>html`
-                <button key=${o} onClick=${()=>setVal(o)} style=${{flex:1,padding:"9px 0",fontSize:13,
-                  background:val===o?"#1D9E75":"var(--color-background-secondary)",color:val===o?"#fff":"var(--color-text-primary)",
+                <button key=${o} onClick=${()=>setVal(o)} style=${{flex:1,padding:"9px 0",fontSize:13,fontWeight:val===o?600:400,
+                  background:val===o?"var(--color-accent)":"var(--color-background-secondary)",color:val===o?"#fff":"var(--color-text-primary)",
                   border:val===o?"none":"0.5px solid var(--color-border-tertiary)"}}>${names[j]}</button>`)}
             </div>
           </div>`)}
         <div style=${{marginBottom:16}}>
           <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Normal hvilepuls (valgfritt, for referanse)</label>
-          <input type="number" inputmode="numeric" value=${baseline ?? ""} placeholder="slag/min"
+          <input class="mono" type="number" inputmode="numeric" value=${baseline ?? ""} placeholder="slag/min"
             onInput=${e=>setBaseline(e.target.value ? parseInt(e.target.value,10) : null)} style=${{width:"100%",boxSizing:"border-box"}}/>
         </div>
         <button onClick=${save} disabled=${busy} class="btn-primary" style=${{width:"100%",padding:"13px",fontSize:15,marginBottom:8}}>${busy?"Lagrer…":"Lagre dagsform"}</button>
@@ -1963,8 +1964,8 @@ function ReadinessCard({ readiness, whoopConnected, onManualCheck, onConnectWhoo
 // Whoop-tilkobling nederst (ved Strava) – vises kun når tilkoblet. Holder trafikklyskortet rent.
 function WhoopCard({ onManualCheck, onDisconnectWhoop }) {
   return html`
-    <div style=${{marginTop:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
-      <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Whoop</p>
+    <div class="card" style=${{marginTop:14,padding:"16px 18px"}}>
+      <p class="eyebrow" style=${{margin:"0 0 10px"}}>Whoop</p>
       <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style=${{fontSize:14,color:"var(--color-text-success)",fontWeight:500}}><i class="ti ti-circle-check"></i> Tilkoblet</span>
         <button onClick=${onDisconnectWhoop} style=${{padding:"8px 12px",fontSize:13,color:"var(--color-text-secondary)"}}>Koble fra Whoop</button>
@@ -1987,10 +1988,10 @@ function MotivationCard({ log, activeProgram }) {
   }
   const warn = tenDayWarning(log);
   return html`
-    <div style=${{marginBottom:14,padding:"14px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
+    <div class="card" style=${{marginBottom:14,padding:"14px 18px"}}>
       <div style=${{display:"flex",gap:16,flexWrap:"wrap",fontSize:13}}>
-        ${streak >= 2 && html`<span>🔥 <b>${streak} uker</b> på rad med trening</span>`}
-        <span>🏅 <b>${total}</b> økter totalt${next ? ` · neste milepæl: ${next}` : ""}</span>
+        ${streak >= 2 && html`<span>🔥 <b class="mono">${streak} uker</b> på rad med trening</span>`}
+        <span>🏅 <b class="mono">${total}</b> økter totalt${next ? ` · neste milepæl: ${next}` : ""}</span>
         ${halfway && html`<span>🎉 Halvveis i programmet!</span>`}
       </div>
       ${warn && html`
@@ -2008,10 +2009,10 @@ function WeekCalendar({ program, log, onOpen }) {
   const today = todayKey();
   const fmtD = d => `${d.getDate()}.${d.getMonth()+1}`;
   return html`
-    <div style=${{marginBottom:14,padding:"14px 16px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
+    <div class="card" style=${{marginBottom:14,padding:"14px 16px"}}>
       <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <button onClick=${()=>setOffset(o=>o-1)} style=${{padding:"4px 10px",fontSize:14}}><i class="ti ti-chevron-left"></i></button>
-        <span style=${{fontSize:13,fontWeight:500}}>${fmtD(monday)} – ${fmtD(addDays(monday,6))}${offset===0?" (denne uken)":""}</span>
+        <span class="mono" style=${{fontSize:13,fontWeight:500}}>${fmtD(monday)} – ${fmtD(addDays(monday,6))}${offset===0?" (denne uken)":""}</span>
         <button onClick=${()=>setOffset(o=>o+1)} style=${{padding:"4px 10px",fontSize:14}}><i class="ti ti-chevron-right"></i></button>
       </div>
       <div style=${{display:"flex",gap:4}}>
@@ -2022,15 +2023,15 @@ function WeekCalendar({ program, log, onOpen }) {
           return html`
             <button key=${i} onClick=${()=>{ if(list.length) onOpen(list[0]); }} style=${{
               flex:1,minWidth:0,padding:"7px 0 6px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,
-              background:isToday?"var(--color-background-info)":"var(--color-background-secondary)",
-              border:isToday?"1px solid var(--color-border-info)":"0.5px solid var(--color-border-tertiary)",
+              background:"var(--color-background-secondary)",
+              border:isToday?"1.5px solid var(--color-accent)":"0.5px solid var(--color-border-tertiary)",
               cursor:list.length?"pointer":"default",opacity:list.length||isToday?1:0.6}}>
-              <span style=${{fontSize:10,color:"var(--color-text-tertiary)"}}>${["M","T","O","T","F","L","S"][i]}</span>
-              <span style=${{fontSize:12,fontWeight:isToday?700:400}}>${d.getDate()}</span>
+              <span style=${{fontSize:10,letterSpacing:"0.06em",color:"var(--color-text-tertiary)"}}>${["M","T","O","T","F","L","S"][i]}</span>
+              <span class="mono" style=${{fontSize:12,fontWeight:isToday?700:400,color:isToday?"var(--color-accent-dark)":"inherit"}}>${d.getDate()}</span>
               <span style=${{display:"flex",gap:2,minHeight:8}}>
                 ${list.map(s=>{
                   const done = log[s.id]&&log[s.id].done;
-                  const col = done ? "#1D9E75" : s.type==="strength" ? iColor("styrke") : iColor((sessionPaces(s).work)||"rolig_lop");
+                  const col = done ? "var(--color-accent)" : s.type==="strength" ? iColor("styrke") : iColor((sessionPaces(s).work)||"rolig_lop");
                   return html`<span key=${s.id} style=${{width:7,height:7,borderRadius:"50%",background:col,opacity:done?1:0.85}}></span>`;
                 })}
               </span>
@@ -2079,12 +2080,12 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
     onCreated(id);
   };
   const chip = (sel) => ({ padding:"12px 14px", fontSize:14, textAlign:"left", width:"100%", marginBottom:8,
-    background: sel ? "#1D9E75" : "var(--color-background-secondary)", color: sel ? "#fff" : "var(--color-text-primary)",
+    background: sel ? "var(--color-accent)" : "var(--color-background-secondary)", color: sel ? "#fff" : "var(--color-text-primary)",
     border: sel ? "none" : "0.5px solid var(--color-border-tertiary)" });
   const stepper = (val, setVal, min, max) => html`
     <div style=${{display:"flex",alignItems:"center",gap:14,justifyContent:"center",margin:"10px 0"}}>
       <button onClick=${()=>setVal(Math.max(min,val-1))} style=${{width:40,height:40,padding:0,fontSize:20}}>−</button>
-      <span style=${{minWidth:40,textAlign:"center",fontSize:24,fontWeight:600}}>${val}</span>
+      <span class="mono" style=${{minWidth:40,textAlign:"center",fontSize:26,fontWeight:600}}>${val}</span>
       <button onClick=${()=>setVal(Math.min(max,val+1))} style=${{width:40,height:40,padding:0,fontSize:20}}>+</button>
     </div>`;
   const stepTitles = ["Hva er målet?","Når?","Løpeøkter per uke","Styrke","Nivå","Periodisering","Oppsummering"];
@@ -2123,15 +2124,15 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
     <div style=${{display:"flex",gap:6,marginBottom:12}}>
       ${[["ingen","Ingen"],["noen","Noen"],["mange","Mange"]].map(([v,l])=>html`
         <button key=${v} onClick=${()=>setInjury(v)} style=${{flex:1,padding:"9px 0",fontSize:13,
-          background:injury===v?"#1D9E75":"var(--color-background-secondary)",color:injury===v?"#fff":"var(--color-text-primary)",
+          background:injury===v?"var(--color-accent)":"var(--color-background-secondary)",color:injury===v?"#fff":"var(--color-text-primary)",
           border:injury===v?"none":"0.5px solid var(--color-border-tertiary)"}}>${l}</button>`)}
     </div>
     <p style=${{margin:"0 0 8px",fontSize:13,color:"var(--color-text-secondary)"}}>Anbefalt for deg: <b>${recS} styrkeøkter/uke</b> (boka: mer løping er ofte bedre enn styrke for unge skadefrie – styrke er viktigst over 50 år eller ved mange skader).</p>
     <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Styrkeøkter per uke</label>
     <div style=${{display:"flex",gap:6,marginBottom:12}}>
       ${[0,1,2].map(n=>html`
-        <button key=${n} onClick=${()=>setStrength(n)} style=${{flex:1,padding:"9px 0",fontSize:14,fontWeight:sVal===n?700:400,
-          background:sVal===n?"#1D9E75":"var(--color-background-secondary)",color:sVal===n?"#fff":"var(--color-text-primary)",
+        <button key=${n} onClick=${()=>setStrength(n)} class="mono" style=${{flex:1,padding:"9px 0",fontSize:14,fontWeight:sVal===n?700:400,
+          background:sVal===n?"var(--color-accent)":"var(--color-background-secondary)",color:sVal===n?"#fff":"var(--color-text-primary)",
           border:sVal===n?"none":"0.5px solid var(--color-border-tertiary)"}}>${n}</button>`)}
     </div>
     ${sVal > 0 && html`<div>
@@ -2167,7 +2168,7 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
         ${w1 ? w1.info : ""}
       </div>
       ${w1 && html`<div style=${{marginBottom:12}}>
-        <p style=${{margin:"0 0 6px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Uke 1</p>
+        <p class="eyebrow" style=${{margin:"0 0 6px"}}>Uke 1</p>
         ${w1.sessions.map(s=>html`
           <p key=${s.id} style=${{margin:"0 0 5px",fontSize:13,color:"var(--color-text-secondary)"}}>
             <b style=${{color:"var(--color-text-primary)"}}>${s.plannedDay}:</b> ${s.type==="strength" ? `Styrke (ca. ${sessionMinutes(s)} min)` : segmentSummary(s)}
@@ -2184,19 +2185,22 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
   }
   return html`
     <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick=${onClose}>
-      <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg) var(--border-radius-lg) 0 0",padding:"20px 22px 26px",maxWidth:480,width:"100%",maxHeight:"88vh",overflowY:"auto",overscrollBehavior:"contain",boxSizing:"border-box"}}>
-        <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <p style=${{margin:0,fontSize:18,fontWeight:600}}>Bygg eget program</p>
+      <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderTop:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg) var(--border-radius-lg) 0 0",padding:"20px 22px 26px",maxWidth:480,width:"100%",maxHeight:"88vh",overflowY:"auto",overscrollBehavior:"contain",boxSizing:"border-box"}}>
+        <div style=${{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+          <div>
+            <p class="eyebrow" style=${{margin:"0 0 5px"}}>Programbygger</p>
+            <p style=${{margin:0,fontSize:20,fontWeight:600,letterSpacing:"-0.01em"}}>Bygg eget program</p>
+          </div>
           <button onClick=${onClose} style=${{background:"none",border:"none",fontSize:20,color:"var(--color-text-secondary)",cursor:"pointer",padding:4}}><i class="ti ti-x"></i></button>
         </div>
         <div style=${{display:"flex",gap:3,marginBottom:14}}>
-          ${stepTitles.map((_,i)=>html`<div key=${i} style=${{flex:1,height:3,borderRadius:2,background:i<=step?"#1D9E75":"var(--color-border-tertiary)"}}></div>`)}
+          ${stepTitles.map((_,i)=>html`<div key=${i} style=${{flex:1,height:3,borderRadius:2,background:i<=step?"var(--color-accent)":"var(--color-border-tertiary)"}}></div>`)}
         </div>
-        <p style=${{margin:"0 0 12px",fontSize:15,fontWeight:600}}>${step+1}/${stepTitles.length} · ${stepTitles[step]}</p>
+        <p style=${{margin:"0 0 12px",fontSize:15,fontWeight:600}}><span class="mono" style=${{color:"var(--color-text-tertiary)",fontWeight:600}}>${step+1}/${stepTitles.length}</span> · ${stepTitles[step]}</p>
         ${bodyEl}
         <div style=${{display:"flex",gap:10,marginTop:16}}>
           ${step > 0 && html`<button onClick=${()=>setStep(s=>s-1)} style=${{flex:1,padding:"12px",fontSize:14}}>Tilbake</button>`}
-          ${step < stepTitles.length-1 && html`<button onClick=${()=>setStep(s=>s+1)} disabled=${!canNext} class="btn-blue" style=${{flex:2,padding:"12px",fontSize:14}}>Neste</button>`}
+          ${step < stepTitles.length-1 && html`<button onClick=${()=>setStep(s=>s+1)} disabled=${!canNext} class="btn-primary" style=${{flex:2,padding:"12px",fontSize:14}}>Neste</button>`}
         </div>
       </div>
     </div>`;
@@ -2519,7 +2523,7 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
           <p style=${{margin:0,fontSize:14,fontWeight:500}}><i class="ti ti-bell"></i> Påminnelser</p>
           <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>Varsel når du åpner appen en dag med planlagt økt</p>
         </div>
-        <button onClick=${onToggleNotify} style=${{width:52,height:30,borderRadius:15,padding:0,position:"relative",background:notifyOn?"#1D9E75":"var(--color-border-secondary)",border:"none",flexShrink:0}}>
+        <button onClick=${onToggleNotify} style=${{width:52,height:30,borderRadius:15,padding:0,position:"relative",background:notifyOn?"var(--color-accent)":"var(--color-border-secondary)",border:"none",flexShrink:0}}>
           <span style=${{position:"absolute",top:3,left:notifyOn?25:3,width:24,height:24,borderRadius:"50%",background:"#fff",transition:"left 0.15s"}}></span>
         </button>
       </div>
@@ -2725,11 +2729,11 @@ function LoginScreen() {
   return html`
     <div style=${{minHeight:"100vh",display:"flex",flexDirection:"column",justifyContent:"center",padding:"24px",maxWidth:420,margin:"0 auto"}}>
       <div style=${{textAlign:"center",marginBottom:28}}>
-        <div style=${{fontSize:44,marginBottom:8}}>🏃</div>
-        <h1 style=${{margin:0,fontSize:24,fontWeight:600}}>Løpeprogram</h1>
+        <i class="ti ti-run" style=${{fontSize:40,color:"var(--color-accent)",display:"block",marginBottom:10}}></i>
+        <h1 style=${{margin:0,fontSize:26,fontWeight:600,letterSpacing:"-0.02em"}}>Løpeprogram</h1>
         <p style=${{margin:"6px 0 0",fontSize:14,color:"var(--color-text-secondary)"}}>${mode==="signup" ? "Opprett din egen treningslogg" : "Logg inn for din egen treningslogg"}</p>
       </div>
-      <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"20px"}}>
+      <div class="card" style=${{padding:"20px"}}>
         <label style=${{display:"block",fontSize:13,color:"var(--color-text-secondary)",marginBottom:6}}>E-post</label>
         <input type="email" inputmode="email" autocomplete="email" value=${email} onInput=${e=>setEmail(e.target.value)} placeholder="deg@epost.no"
           style=${{width:"100%",boxSizing:"border-box",marginBottom:12}}/>
@@ -2741,7 +2745,7 @@ function LoginScreen() {
         <button onClick=${submit} disabled=${busy||!email.trim()||!pw} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15}}>
           ${busy ? "Vent…" : (mode==="signup" ? "Opprett konto" : "Logg inn")}
         </button>
-        <button onClick=${()=>{ setMode(mode==="signup"?"signin":"signup"); setErr(""); }} style=${{width:"100%",marginTop:12,padding:"8px",fontSize:13,background:"none",border:"none",color:"var(--color-text-info)"}}>
+        <button onClick=${()=>{ setMode(mode==="signup"?"signin":"signup"); setErr(""); }} style=${{width:"100%",marginTop:12,padding:"8px",fontSize:13,fontWeight:600,background:"none",border:"none",color:"var(--color-accent-dark)"}}>
           ${mode==="signup" ? "Har du konto? Logg inn" : "Ny her? Opprett konto"}
         </button>
       </div>
@@ -2754,13 +2758,13 @@ function WelcomeScreen({ onChooseBuiltin, onBuildOwn, busy }) {
   return html`
     <div style=${{position:"fixed",inset:0,zIndex:1500,background:"var(--color-background-secondary)",overflowY:"auto",display:"flex",flexDirection:"column",alignItems:"center",padding:"32px 20px 40px",boxSizing:"border-box"}}>
       <div style=${{maxWidth:440,width:"100%",margin:"auto 0"}}>
-        <p style=${{margin:"0 0 6px",fontSize:13,fontWeight:600,color:"#1D9E75",textTransform:"uppercase",letterSpacing:"0.1em"}}>Velkommen</p>
-        <p style=${{margin:"0 0 6px",fontSize:24,fontWeight:700,lineHeight:1.2}}>Hvordan vil du komme i gang?</p>
+        <p class="eyebrow" style=${{margin:"0 0 8px",color:"var(--color-accent-dark)"}}>Velkommen</p>
+        <p style=${{margin:"0 0 6px",fontSize:26,fontWeight:600,letterSpacing:"-0.02em",lineHeight:1.15}}>Hvordan vil du komme i gang?</p>
         <p style=${{margin:"0 0 24px",fontSize:14,color:"var(--color-text-secondary)",lineHeight:1.5}}>Velg et startpunkt. Du kan bygge flere program senere – begge er alltid tilgjengelige inne i appen.</p>
 
         <button onClick=${onChooseBuiltin} disabled=${busy} style=${{
           width:"100%",textAlign:"left",cursor:"pointer",border:"none",marginBottom:14,
-          background:"linear-gradient(135deg,#1D9E75,#178a64)",color:"#fff",
+          background:"var(--color-accent)",color:"#fff",
           borderRadius:"var(--border-radius-lg)",padding:"20px 22px"}}>
           <p style=${{margin:"0 0 6px",fontSize:18,fontWeight:600,display:"flex",alignItems:"center",gap:9}}><i class="ti ti-run" style=${{fontSize:20}}></i> 12-ukers-programmet</p>
           <p style=${{margin:0,fontSize:13.5,opacity:0.92,lineHeight:1.5}}>For nybegynnere og for å komme tilbake fra skade. Et ferdig løp fra boka: 12 uker, tre økter i uka, guidet med stemme.</p>
@@ -2771,7 +2775,7 @@ function WelcomeScreen({ onChooseBuiltin, onBuildOwn, busy }) {
           background:"var(--color-background-primary)",color:"var(--color-text-primary)",
           border:"0.5px solid var(--color-border-tertiary)",
           borderRadius:"var(--border-radius-lg)",padding:"20px 22px"}}>
-          <p style=${{margin:"0 0 6px",fontSize:18,fontWeight:600,display:"flex",alignItems:"center",gap:9}}><i class="ti ti-wand" style=${{fontSize:20,color:"#1D9E75"}}></i> Bygg eget program</p>
+          <p style=${{margin:"0 0 6px",fontSize:18,fontWeight:600,display:"flex",alignItems:"center",gap:9}}><i class="ti ti-wand" style=${{fontSize:20,color:"var(--color-accent)"}}></i> Bygg eget program</p>
           <p style=${{margin:0,fontSize:13.5,color:"var(--color-text-secondary)",lineHeight:1.5}}>Velg mål, dato, økter per uke og periodisering, så lager appen et program etter bokas modell (80/20, tre nøkkeløkter, volumtrapp og nedtrapping mot løpsdag).</p>
         </button>
       </div>
@@ -2998,25 +3002,29 @@ function App() {
         ${[{id:"program",icon:"ti-run",label:"Program"},{id:"stats",icon:"ti-chart-line",label:"Statistikk"}].map(t => html`
           <button key=${t.id} onClick=${()=>{setTab(t.id);if(t.id==="program")setView({name:"list"});}} style=${{
             flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,background:"none",border:"none",cursor:"pointer",padding:0,
-            color:tab===t.id?"#1D9E75":"var(--color-text-secondary)"}}>
+            color:tab===t.id?"var(--color-accent)":"var(--color-text-secondary)"}}>
             <i class=${`ti ${t.icon}`} style=${{fontSize:22}}></i>
             <span style=${{fontSize:11,fontWeight:tab===t.id?500:400}}>${t.label}</span>
           </button>`)}
       </nav>
       ${confirmLogout && html`
         <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick=${()=>setConfirmLogout(false)}>
-          <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",padding:"22px",maxWidth:320,width:"100%",textAlign:"center"}}>
-            <p style=${{margin:"0 0 4px",fontSize:17,fontWeight:600}}>Logge ut?</p>
-            <p style=${{margin:"0 0 18px",fontSize:14,color:"var(--color-text-secondary)"}}>Du må logge inn igjen med e-post og passord.</p>
+          <div onClick=${e=>e.stopPropagation()} class="card" style=${{padding:"22px",maxWidth:320,width:"100%",textAlign:"center"}}>
+            <p class="eyebrow" style=${{margin:"0 0 8px"}}>Konto</p>
+            <p style=${{margin:"0 0 4px",fontSize:18,fontWeight:600,letterSpacing:"-0.01em"}}>Logge ut?</p>
+            <p style=${{margin:"0 0 18px",fontSize:14,color:"var(--color-text-secondary)",lineHeight:1.5}}>Du må logge inn igjen med e-post og passord.</p>
             <button onClick=${()=>{ setConfirmLogout(false); logout(); }} style=${{width:"100%",padding:"13px",fontSize:15,marginBottom:8,background:"#ff3b30",color:"#fff",border:"none"}}>Logg ut</button>
             <button onClick=${()=>setConfirmLogout(false)} style=${{width:"100%",padding:"12px",fontSize:14,color:"var(--color-text-secondary)"}}>Avbryt</button>
           </div>
         </div>`}
       ${showHelp && html`
         <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick=${()=>setShowHelp(false)}>
-          <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg) var(--border-radius-lg) 0 0",padding:"20px 22px 26px",maxWidth:480,width:"100%",maxHeight:"85vh",overflowY:"auto",boxSizing:"border-box"}}>
-            <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <p style=${{margin:0,fontSize:18,fontWeight:600}}>Hvordan appen fungerer</p>
+          <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderTop:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg) var(--border-radius-lg) 0 0",padding:"20px 22px 26px",maxWidth:480,width:"100%",maxHeight:"85vh",overflowY:"auto",boxSizing:"border-box",overscrollBehavior:"contain"}}>
+            <div style=${{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+              <div>
+                <p class="eyebrow" style=${{margin:"0 0 5px"}}>Hjelp</p>
+                <p style=${{margin:0,fontSize:20,fontWeight:600,letterSpacing:"-0.01em"}}>Hvordan appen fungerer</p>
+              </div>
               <button onClick=${()=>setShowHelp(false)} style=${{background:"none",border:"none",fontSize:20,color:"var(--color-text-secondary)",cursor:"pointer",padding:4}}><i class="ti ti-x"></i></button>
             </div>
             ${[
@@ -3036,7 +3044,7 @@ function App() {
               ["ti-moon","Tema og enhet","Månen øverst bytter mellom lyst/mørkt/system-tema. Knappen med km/t eller min/km bytter hvilken enhet fart vises i."],
             ].map(([icon,title,text])=>html`
               <div style=${{display:"flex",gap:12,marginBottom:16}}>
-                <i class=${`ti ${icon}`} style=${{fontSize:20,color:"#1D9E75",flexShrink:0,marginTop:2}}></i>
+                <i class=${`ti ${icon}`} style=${{fontSize:20,color:"var(--color-accent)",flexShrink:0,marginTop:2}}></i>
                 <div>
                   <p style=${{margin:"0 0 3px",fontSize:14,fontWeight:600}}>${title}</p>
                   <p style=${{margin:0,fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>${text}</p>
@@ -3047,15 +3055,16 @@ function App() {
         </div>`}
       ${showProfile && html`
         <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick=${()=>setShowProfile(false)}>
-          <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",padding:"22px",maxWidth:360,width:"100%"}}>
-            <p style=${{margin:"0 0 4px",fontSize:18,fontWeight:600}}><i class="ti ti-heartbeat"></i> Terskelfart og makspuls</p>
-            <p style=${{margin:"0 0 18px",fontSize:13,color:"var(--color-text-secondary)"}}>Brukes til å regne ut «den gylne sonen» – hvilken puls du bør ligge på i hver økt (80-87% av makspuls for terskeløkter).</p>
+          <div onClick=${e=>e.stopPropagation()} class="card" style=${{padding:"22px",maxWidth:360,width:"100%"}}>
+            <p class="eyebrow" style=${{margin:"0 0 5px"}}>Gylne sonen</p>
+            <p style=${{margin:"0 0 4px",fontSize:19,fontWeight:600,letterSpacing:"-0.01em"}}>Terskelfart og makspuls</p>
+            <p style=${{margin:"0 0 18px",fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>Brukes til å regne ut «den gylne sonen» – hvilken puls du bør ligge på i hver økt (80-87% av makspuls for terskeløkter).</p>
             <div style=${{marginBottom:14}}>
               <${SpeedInput} label="Terskelfart" kmh=${pThr} unit=${unit} onChange=${setPThr}/>
             </div>
             <div style=${{marginBottom:18}}>
               <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Makspuls</label>
-              <input type="number" inputmode="numeric" step="1" value=${pMaxHR ?? ""} placeholder="slag/min"
+              <input class="mono" type="number" inputmode="numeric" step="1" value=${pMaxHR ?? ""} placeholder="slag/min"
                 onInput=${e=>setPMaxHR(e.target.value ? parseInt(e.target.value,10) : null)}
                 style=${{width:"100%",boxSizing:"border-box"}}/>
               <span style=${{fontSize:11,color:"var(--color-text-tertiary)"}}>slag/min</span>
