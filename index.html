@@ -2578,23 +2578,23 @@ function StatsView({ log, unit, extraSessions }) {
 
   return html`
     <div>
-      <div style=${{display:"flex",gap:10,marginBottom:16}}>
-        <div style=${{flex:1,background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px",textAlign:"center"}}>
-          <p style=${{margin:0,fontSize:28,fontWeight:600}}>${doneAll.length}</p>
-          <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>økter gjort</p>
+      <div class="metric-grid" style=${{gridTemplateColumns:"1fr 1fr 1fr",marginBottom:16}}>
+        <div class="metric-cell">
+          <div class="lab">Økter</div>
+          <div class="val">${doneAll.length}</div>
         </div>
-        <div style=${{flex:1,background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px",textAlign:"center"}}>
-          <p style=${{margin:0,fontSize:28,fontWeight:600}}>${totalKm}</p>
-          <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>km totalt</p>
+        <div class="metric-cell">
+          <div class="lab">Km totalt</div>
+          <div class="val">${totalKm}</div>
         </div>
-        <div style=${{flex:1,background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px",textAlign:"center"}}>
-          <p style=${{margin:0,fontSize:28,fontWeight:600}}>${totalMin}</p>
-          <p style=${{margin:"2px 0 0",fontSize:12,color:"var(--color-text-secondary)"}}>minutter</p>
+        <div class="metric-cell">
+          <div class="lab">Minutter</div>
+          <div class="val">${totalMin}</div>
         </div>
       </div>
 
-      <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:16}}>
-        <p style=${{margin:"0 0 4px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Arbeidsfart over tid</p>
+      <div class="card" style=${{padding:"18px",marginBottom:16}}>
+        <p class="eyebrow" style=${{margin:"0 0 4px"}}>Arbeidsfart over tid</p>
         <p style=${{margin:"0 0 14px",fontSize:13,color:"var(--color-text-tertiary)"}}>${unit==="pace"?"min/km (lavere = raskere)":"km/t (høyere = raskere)"}</p>
         ${withThr.length < 2
           ? html`<p style=${{color:"var(--color-text-secondary)",fontSize:14,paddingBottom:6}}>Logg arbeidsfart på minst to økter for å se utviklingen.</p>`
@@ -2602,40 +2602,40 @@ function StatsView({ log, unit, extraSessions }) {
       </div>
 
       ${hrPoints.length >= 2 && html`
-        <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:16}}>
-          <p style=${{margin:"0 0 4px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Puls under løp over tid</p>
+        <div class="card" style=${{padding:"18px",marginBottom:16}}>
+          <p class="eyebrow" style=${{margin:"0 0 4px"}}>Puls under løp over tid</p>
           <p style=${{margin:"0 0 14px",fontSize:13,color:"var(--color-text-tertiary)"}}>Lavere puls på samme fart = bedre form</p>
           <${HrChart} points=${hrPoints}/>
         </div>`}
 
       ${anyKm && html`
-        <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:16}}>
-          <p style=${{margin:"0 0 14px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Distanse per uke (km)</p>
+        <div class="card" style=${{padding:"18px",marginBottom:16}}>
+          <p class="eyebrow" style=${{margin:"0 0 14px"}}>Distanse per uke (km)</p>
           <${VolumeChart} weeks=${weekKm}/>
         </div>`}
 
-      <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px"}}>
-        <p style=${{margin:"0 0 14px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Fremgang per fase</p>
+      <div class="card" style=${{padding:"18px"}}>
+        <p class="eyebrow" style=${{margin:"0 0 14px"}}>Fremgang per fase</p>
         ${phaseStats.map(ps=>html`
           <div key=${ps.p} style=${{marginBottom:12}}>
             <div style=${{display:"flex",justifyContent:"space-between",marginBottom:5}}>
               <span style=${{fontSize:13}}>${ps.p}</span>
-              <span style=${{fontSize:13,color:"var(--color-text-secondary)"}}>${ps.done}/${ps.total}</span>
+              <span class="mono" style=${{fontSize:13,color:"var(--color-text-secondary)"}}>${ps.done}/${ps.total}</span>
             </div>
             <div style=${{height:8,borderRadius:4,background:"var(--color-background-secondary)",overflow:"hidden"}}>
-              <div style=${{height:"100%",width:`${Math.round((ps.done/ps.total)*100)}%`,background:"#1D9E75",borderRadius:4,transition:"width 0.5s"}}></div>
+              <div style=${{height:"100%",width:`${Math.round((ps.done/ps.total)*100)}%`,background:"var(--color-accent)",borderRadius:4,transition:"width 0.5s"}}></div>
             </div>
           </div>`)}
       </div>
 
       ${notes.length > 0 && html`
-        <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginTop:16}}>
-          <p style=${{margin:"0 0 12px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Notater</p>
+        <div class="card" style=${{padding:"18px",marginTop:16}}>
+          <p class="eyebrow" style=${{margin:"0 0 12px"}}>Notater</p>
           ${notes.map((x,i)=>html`
             <div key=${x.s.id} style=${{padding:"10px 0",borderTop:i===0?"none":"0.5px solid var(--color-border-tertiary)"}}>
               <div style=${{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
                 <span style=${{fontSize:13,fontWeight:500}}>Uke ${x.s.week} · ${x.s.plannedDay}${x.s.type==="strength"?" · Styrke":""}</span>
-                <span style=${{fontSize:12,color:"var(--color-text-tertiary)",flexShrink:0}}>${x.r.done_date||""}</span>
+                <span class="mono" style=${{fontSize:12,color:"var(--color-text-tertiary)",flexShrink:0}}>${x.r.done_date||""}</span>
               </div>
               ${(x.r.rpe != null || x.r.feeling) && html`<p style=${{margin:"3px 0 0",fontSize:12,color:"var(--color-text-tertiary)"}}>${x.r.rpe != null ? `RPE ${x.r.rpe}` : ""}${x.r.rpe != null && x.r.feeling ? " · " : ""}${x.r.feeling ? `føltes ${x.r.feeling}` : ""}</p>`}
               ${x.r.note && html`<p style=${{margin:"3px 0 0",fontSize:13,lineHeight:1.5,color:"var(--color-text-secondary)"}}>${x.r.note}</p>`}
@@ -2660,11 +2660,11 @@ function AxisChart({ vals, dates, fmt, color }) {
     <svg viewBox="0 0 ${W} ${H}" style=${{width:"100%",height:"auto",display:"block"}}>
       ${yRefs.map((v,i)=>html`
         <line key=${"g"+i} x1=${padL} y1=${y(v).toFixed(1)} x2=${W-padR} y2=${y(v).toFixed(1)} stroke="var(--color-border-tertiary)" stroke-width="0.5"/>
-        <text key=${"yt"+i} x=${padL-6} y=${(y(v)+3).toFixed(1)} font-size="9" fill="var(--color-text-tertiary)" text-anchor="end">${fmt(v)}</text>`)}
+        <text key=${"yt"+i} x=${padL-6} y=${(y(v)+3).toFixed(1)} font-size="9" font-family="var(--font-mono)" fill="var(--color-text-tertiary)" text-anchor="end">${fmt(v)}</text>`)}
       <path d=${path} fill="none" stroke=${color} stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
       ${vals.map((v,i)=>html`<circle key=${"c"+i} cx=${x(i).toFixed(1)} cy=${y(v).toFixed(1)} r="3" fill=${color}/>`)}
-      ${xIdx.map((i,j)=>html`<text key=${"xt"+j} x=${x(i).toFixed(1)} y=${H-6} font-size="9" fill="var(--color-text-tertiary)" text-anchor=${i===0?"start":i===n-1?"end":"middle"}>${dLabel(dates[i])}</text>`)}
-      <text x=${(x(n-1)).toFixed(1)} y=${(y(last)-8).toFixed(1)} font-size="11" font-weight="700" fill=${color} text-anchor="end">${fmt(last)}</text>
+      ${xIdx.map((i,j)=>html`<text key=${"xt"+j} x=${x(i).toFixed(1)} y=${H-6} font-size="9" font-family="var(--font-mono)" fill="var(--color-text-tertiary)" text-anchor=${i===0?"start":i===n-1?"end":"middle"}>${dLabel(dates[i])}</text>`)}
+      <text x=${(x(n-1)).toFixed(1)} y=${(y(last)-8).toFixed(1)} font-size="11" font-weight="700" font-family="var(--font-mono)" fill=${color} text-anchor="end">${fmt(last)}</text>
     </svg>`;
 }
 
@@ -2673,7 +2673,7 @@ function LineChart({ points, unit }) {
     vals=${points.map(p=>p.kmh)}
     dates=${points.map(p=>p.date)}
     fmt=${k => unit==="pace" ? kmhToPace(k) : (Math.round(k*10)/10)+""}
-    color="#1D9E75"/>`;
+    color="var(--color-accent)"/>`;
 }
 
 function HrChart({ points }) {
@@ -2690,9 +2690,9 @@ function VolumeChart({ weeks }) {
     <div style=${{display:"flex",alignItems:"flex-end",gap:3,height:110}}>
       ${weeks.map(w=>html`
         <div key=${w.week} style=${{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,height:"100%",justifyContent:"flex-end"}}>
-          ${w.km>0 ? html`<span style=${{fontSize:9,fontWeight:600,color:"var(--color-text-secondary)"}}>${w.km}</span>` : ""}
-          <div style=${{width:"72%",height:`${Math.round((w.km/max)*68)}px`,minHeight:w.km>0?3:0,background:"#1D9E75",borderRadius:3}}></div>
-          <span style=${{fontSize:9,color:"var(--color-text-tertiary)"}}>${w.week}</span>
+          ${w.km>0 ? html`<span class="mono" style=${{fontSize:9,fontWeight:600,color:"var(--color-text-secondary)"}}>${w.km}</span>` : ""}
+          <div style=${{width:"72%",height:`${Math.round((w.km/max)*68)}px`,minHeight:w.km>0?3:0,background:"var(--color-accent)",borderRadius:3}}></div>
+          <span class="mono" style=${{fontSize:9,color:"var(--color-text-tertiary)"}}>${w.week}</span>
         </div>`)}
     </div>`;
 }
