@@ -891,8 +891,13 @@ function paceFromSec(secArr) {
   const toKmh = s => Math.round((3600/s)*10)/10;
   return { pace: [toStr(secArr[0]), toStr(secArr[1])], kmh: [toKmh(secArr[1]), toKmh(secArr[0])] };
 }
-// Fart for et arbeidsdrag: lagret målfart (genererte program) foran %-kalkulatoren
+// Fart for et arbeidsdrag. Prioritet:
+//  1) paceGuide → bokas sek/km-guide regnet LIVE fra dagens terskelfart (egne program,
+//     så farten følger progresjonen din automatisk)
+//  2) paceSec → statisk lagret målfart (eldre egne program, bakt inn ved generering)
+//  3) paceZone → %-kalkulatoren (12-ukers)
 function workPaceZone(workSeg, thresholdKmh) {
+  if (workSeg && workSeg.paceGuide) return thresholdKmh ? paceFromSec(guidePaceSec(workSeg.durationSec, thresholdKmh)) : null;
   if (workSeg && workSeg.paceSec) return paceFromSec(workSeg.paceSec);
   return workSeg ? paceZone(workSeg.durationSec, thresholdKmh) : null;
 }
@@ -998,19 +1003,19 @@ function buildRunSession(id, day, plannedDate, kind, ctx) {
   } else if (kind === "hoved") {
     // Hovedkvalitet: lange terskeldrag, maks 1×/uke
     seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
-    seg.push({ kind: "intervals", repeatsRange: [3,4], work: { intensity: "terskel", durationSec: 600, paceSec: guidePaceSec(600, thr) }, rest: { intensity: "lett_jogg", durationSec: 120 } });
+    seg.push({ kind: "intervals", repeatsRange: [3,4], work: { intensity: "terskel", durationSec: 600, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 120 } });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
   } else if (kind === "stotte") {
     // Støttekvalitet: kortere drag (≤ 3 min) med 1 min pause
     seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
-    seg.push({ kind: "intervals", repeatsRange: [10,12], work: { intensity: "terskel", durationSec: 180, paceSec: guidePaceSec(180, thr) }, rest: { intensity: "lett_jogg_gange", durationSec: 60 } });
+    seg.push({ kind: "intervals", repeatsRange: [10,12], work: { intensity: "terskel", durationSec: 180, paceGuide: true }, rest: { intensity: "lett_jogg_gange", durationSec: 60 } });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
   } else if (kind === "x") {
     // X-økt 45/15: første som ryker ved rødt lys. Spisses mot måldato ved progressiv X
     const prog = periodization === "progressiv_x" ? i / Math.max(1, n-1) : 0;
     const reps = [Math.round(15 + prog*3), Math.round(18 + prog*2)];
     seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
-    seg.push({ kind: "intervals", repeatsRange: reps, work: { intensity: "rask_jogg", durationSec: 45, paceSec: guidePaceSec(45, thr) }, rest: { intensity: "pause", durationSec: 15 }, note: "start i 10 km-fart, øk gradvis mot 5 km-fart" });
+    seg.push({ kind: "intervals", repeatsRange: reps, work: { intensity: "rask_jogg", durationSec: 45, paceGuide: true }, rest: { intensity: "pause", durationSec: 15 }, note: "start i 10 km-fart, øk gradvis mot 5 km-fart" });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
   }
   return { id, plannedDay: day, plannedDate, optional: false, segments: seg };
@@ -1341,25 +1346,27 @@ function buildSteps(session, choices) {
     if (seg.kind === "intervals") {
       const n = seg.repeatsRange ? (ch.reps ?? seg.repeatsRange[0]) : seg.repeats;
       for (let r=0; r<n; r++) {
-        steps.push({ label: `Arbeid ${r+1}/${n}`, intensity: seg.work.intensity, sec: seg.work.durationSec, paceSec: seg.work.paceSec || null });
-        steps.push({ label: `Pause ${r+1}/${n}`, intensity: seg.rest.intensity, sec: seg.rest.durationSec });
+        steps.push({ label: `Arbeid ${r+1}/${n}`, intensity: seg.work.intensity, sec: seg.work.durationSec, paceSec: seg.work.paceSec || null, paceGuide: seg.work.paceGuide || false, segKind: "intervals" });
+        steps.push({ label: `Pause ${r+1}/${n}`, intensity: seg.rest.intensity, sec: seg.rest.durationSec, segKind: "intervals" });
       }
     } else if (seg.kind === "strength_ex") {
       for (let r=0; r<seg.sets; r++) {
-        steps.push({ label: seg.sets > 1 ? `${seg.name} · sett ${r+1}/${seg.sets}` : seg.name, intensity: "styrke", sec: seg.workSec, say: `${seg.name}, ${durSpoken(seg.workSec)}` });
-        if (seg.restSec) steps.push({ label: "Pause", intensity: "pause", sec: seg.restSec, say: `Pause, ${durSpoken(seg.restSec)}` });
+        steps.push({ label: seg.sets > 1 ? `${seg.name} · sett ${r+1}/${seg.sets}` : seg.name, intensity: "styrke", sec: seg.workSec, say: `${seg.name}, ${durSpoken(seg.workSec)}`, segKind: "strength_ex" });
+        if (seg.restSec) steps.push({ label: "Pause", intensity: "pause", sec: seg.restSec, say: `Pause, ${durSpoken(seg.restSec)}`, segKind: "strength_ex" });
       }
     } else if (seg.kind === "continuous") {
       const sec = seg.durationRangeSec ? (ch.sec ?? seg.durationRangeSec[0]) : seg.durationSec;
-      steps.push({ label: seg.note || iLabel(seg.intensity), intensity: seg.intensity, sec });
+      steps.push({ label: seg.note || iLabel(seg.intensity), intensity: seg.intensity, sec, segKind: "continuous" });
     } else if (seg.kind === "warmup" || seg.kind === "cooldown") {
       const sec = seg.durationRangeSec ? (ch.sec ?? seg.durationRangeSec[0]) : seg.durationSec;
-      steps.push({ label: seg.kind === "warmup" ? "Oppvarming" : "Nedjogg", intensity: seg.intensity, sec });
+      steps.push({ label: seg.kind === "warmup" ? "Oppvarming" : "Nedjogg", intensity: seg.intensity, sec, segKind: seg.kind });
     }
     // test-segment hoppes over i guidet modus
   });
   return steps;
 }
+
+function firstCooldownIdx(arr) { for (let i=0;i<arr.length;i++) if (arr[i].segKind === "cooldown") return i; return -1; }
 
 // ─── KOMPONENTER ──────────────────────────────────────────────────────────────
 
@@ -1455,14 +1462,42 @@ function SpeedInput({ label, kmh, unit, onChange }) {
   `;
 }
 
-function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKmh, unit, onExit, onFinish }) {
-  const steps = buildSteps(session, choices);
+function GuidedSession({ session, choices, readiness, voiceOn, voiceURI, maxHR, thresholdKmh, unit, onExit, onFinish }) {
+  const [steps, setSteps] = useState(() => buildSteps(session, choices));
   const [idx, setIdx] = useState(0);
   const [rem, setRem] = useState(steps.length ? steps[0].sec : 0);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
   const [rpe, setRpe] = useState(null);
   const [feeling, setFeeling] = useState(null);
+  const [extendPrompt, setExtendPrompt] = useState(false);
+  const [extendDone, setExtendDone] = useState(false);
+  // Grønt lys (kap. 12) på nøkkeløkt → tilby å forlenge rett før nedjogg
+  const green = readiness && readiness.color === "gronn" && isHardSession(session);
+  const ivSeg = session.segments.find(s => s.kind === "intervals");
+  const contSeg = ivSeg ? null : session.segments.find(s => s.kind === "continuous");
+  // Hvor mye kan man forlenge? Cappet på ~40 % av hoveddelen (samme tak som konfig).
+  // Intervall → antall ekstra drag (maks 6). Kontinuerlig → minutter i steg på 5.
+  const extendOptions = (arr) => {
+    const cool = firstCooldownIdx(arr);
+    if (ivSeg) {
+      const baseUpper = ivSeg.repeatsRange ? ivSeg.repeatsRange[1] : ivSeg.repeats;
+      const maxTotal = Math.ceil(baseUpper * 1.4);
+      const curDrag = arr.filter((s,i) => (cool < 0 || i < cool) && s.label && (s.label.indexOf("Arbeid") === 0 || s.label === "Ekstra drag")).length;
+      const remaining = Math.min(6, Math.max(0, maxTotal - curDrag));
+      return { kind: "drag", counts: Array.from({length: remaining}, (_,k) => k+1) };
+    }
+    if (contSeg) {
+      const mainStep = arr.find(s => s.segKind === "continuous");
+      const baseSec = mainStep ? mainStep.sec : 0;
+      const capMin = Math.min(30, Math.floor((baseSec * 0.4) / 60 / 5) * 5);
+      const mins = []; for (let mm = 5; mm <= capMin; mm += 5) mins.push(mm);
+      return { kind: "min", counts: mins };
+    }
+    return { kind: null, counts: [] };
+  };
+  const opts = green ? extendOptions(steps) : { kind: null, counts: [] };
+  const canExtend = green && firstCooldownIdx(steps) !== -1 && !extendDone && opts.counts.length > 0;
   const [locked, setLocked] = useState(false);
   const [unlockHint, setUnlockHint] = useState(false);
   const [shield, setShield] = useState(false);
@@ -1526,13 +1561,15 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
   useEffect(()=>{
     if (running) {
       const cur = steps[idx], nxt = steps[idx+1];
+      // Rett før nedjogg med grønt lys: ikke forhåndsvarsle nedjogg – forleng-valget kommer
+      const atBoundary = canExtend && nxt && nxt.segKind === "cooldown";
       ref.current = setInterval(()=>{
         if (voiceOn) { try { window.speechSynthesis && window.speechSynthesis.resume(); } catch {} }
         setRem(r=>{
           if (r <= 1) return 0;
           const nr = r-1;
           if (voiceOn) {
-            if (nxt && cur.sec >= 6 && nr === 5) say(nxt.say || stepSpoken(nxt), voiceURI);
+            if (!atBoundary && nxt && cur.sec >= 6 && nr === 5) say(nxt.say || stepSpoken(nxt), voiceURI);
             else if (cur.sec >= 6 && nr <= 3 && nr >= 1) say(String(nr), voiceURI);
           } else if (nr <= 3) { playPling(1, 660); }
           return nr;
@@ -1546,9 +1583,17 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
 
   function advance() {
     clearInterval(ref.current);
+    const n = idx+1;
+    const coolIdx = firstCooldownIdx(steps);
+    // Grønt lys: rett før nedjogg, tilby å forlenge i stedet for å gå videre
+    if (canExtend && n === coolIdx) {
+      playPling(2, 880);
+      setRunning(false); setLocked(false); setExtendPrompt(true);
+      if (voiceOn) say("Økten er ferdig. Vil du forlenge, eller gå til nedjogg?", voiceURI);
+      return;
+    }
     if (idx < steps.length-1) {
       playPling(2, 880);
-      const n = idx+1;
       setIdx(n); setRem(steps[n].sec);
     } else {
       playPling(3, 990);
@@ -1557,6 +1602,46 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
       releaseWake(); setDuck(false);
     }
   }
+
+  // Forleng: sett inn valgt antall ekstra drag (eller X min) rett før nedjogg og fortsett.
+  // Cappet på ~40 % via extendOptions, så man kan ikke velge mer enn taket.
+  const extendBy = (amount) => {
+    const coolIdx = firstCooldownIdx(steps);
+    const at = coolIdx === -1 ? steps.length : coolIdx;
+    const extra = [];
+    if (ivSeg) {
+      for (let k=0; k<amount; k++) {
+        extra.push({ label: "Ekstra drag", intensity: ivSeg.work.intensity, sec: ivSeg.work.durationSec, paceSec: ivSeg.work.paceSec || null, paceGuide: ivSeg.work.paceGuide || false, say: `Ekstra drag, ${durSpoken(ivSeg.work.durationSec)}`, segKind: "extra" });
+        extra.push({ label: "Ekstra pause", intensity: ivSeg.rest.intensity, sec: ivSeg.rest.durationSec, say: `Pause, ${durSpoken(ivSeg.rest.durationSec)}`, segKind: "extra" });
+      }
+    } else if (contSeg) {
+      const sec = amount * 60;
+      extra.push({ label: "Ekstra tid", intensity: contSeg.intensity, sec, say: `${amount} minutter ekstra ${iLabel(contSeg.intensity).replace("/", "eller")}`, segKind: "extra" });
+    }
+    setExtendDone(true);
+    if (!extra.length) { goCooldown(); return; }
+    const newSteps = [...steps.slice(0, at), ...extra, ...steps.slice(at)];
+    setSteps(newSteps);
+    setExtendPrompt(false);
+    setIdx(at); setRem(newSteps[at].sec); setRunning(true);
+    acquireWake();
+    if (voiceOn) say(extra[0].say || stepSpoken(extra[0]), voiceURI);
+  };
+  // Fortsett til nedjogg uten å forlenge
+  const goCooldown = () => {
+    const coolIdx = firstCooldownIdx(steps);
+    setExtendDone(true);
+    setExtendPrompt(false);
+    if (coolIdx === -1) {
+      playPling(3, 990);
+      if (voiceOn) say("Økt fullført. Godt jobbet!", voiceURI);
+      setDone(true); releaseWake(); setDuck(false); return;
+    }
+    playPling(2, 880);
+    setIdx(coolIdx); setRem(steps[coolIdx].sec); setRunning(true);
+    acquireWake();
+    if (voiceOn) say(steps[coolIdx].say || stepSpoken(steps[coolIdx]), voiceURI);
+  };
 
   if (!steps.length) return html`<p style=${{padding:20}}>Ingen tidsstyrte segmenter i denne økten.</p>`;
 
@@ -1581,7 +1666,9 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
   const circ = Math.round(2*Math.PI*70);
   const col = iColor(step.intensity);
   const zone = hrZone(step.intensity, maxHR);
-  const pace = step.paceSec ? paceFromSec(step.paceSec) : (step.label.startsWith("Arbeid") ? paceZone(step.sec, thresholdKmh) : null);
+  const pace = step.paceGuide ? (thresholdKmh ? paceFromSec(guidePaceSec(step.sec, thresholdKmh)) : null)
+    : step.paceSec ? paceFromSec(step.paceSec)
+    : ((step.label.startsWith("Arbeid") || step.label === "Ekstra drag") ? paceZone(step.sec, thresholdKmh) : null);
   const totalSec = steps.reduce((a,x)=>a+x.sec,0);
   let elapsedSec = 0; for (let i=0;i<idx;i++) elapsedSec += steps[i].sec;
   elapsedSec += step.sec - rem;
@@ -1646,6 +1733,25 @@ function GuidedSession({ session, choices, voiceOn, voiceURI, maxHR, thresholdKm
           </button>
         </div>`}
       ${shield && html`<div style=${{position:"fixed",inset:0,zIndex:1001}} onClick=${e=>{e.stopPropagation();e.preventDefault();}} onPointerDown=${e=>{e.stopPropagation();e.preventDefault();}}></div>`}
+      ${extendPrompt && html`
+        <div style=${{position:"fixed",inset:0,zIndex:1100,background:"var(--color-background-secondary)",display:"flex",flexDirection:"column",justifyContent:"center",padding:"28px 22px",boxSizing:"border-box",textAlign:"center"}}>
+          <div style=${{display:"inline-block",alignSelf:"center",padding:"6px 16px",borderRadius:20,background:"#34c759",color:"#fff",fontSize:14,fontWeight:600,marginBottom:16}}>
+            <i class="ti ti-traffic-lights"></i> Grønt lys
+          </div>
+          <h2 style=${{margin:"0 0 8px",fontSize:24,fontWeight:500}}>Økten er ferdig 🎉</h2>
+          <p style=${{margin:"0 0 20px",fontSize:15,color:"var(--color-text-secondary)",lineHeight:1.5}}>
+            Du har overskudd i dag. ${opts.kind==="drag" ? "Hvor mange ekstra drag vil du legge på" : "Hvor mange minutter vil du forlenge"} før nedjogg? <span style=${{opacity:0.75}}>(grønt lys gir opptil ~40 %)</span>
+          </p>
+          <div style=${{display:"flex",flexWrap:"wrap",gap:10,justifyContent:"center",marginBottom:24}}>
+            ${opts.counts.map(c=>html`
+              <button key=${c} onClick=${()=>extendBy(c)} class="btn-primary" style=${{flex:"1 1 28%",minWidth:88,padding:"18px 0",fontSize:17,fontWeight:600}}>
+                +${c}${opts.kind==="min" ? " min" : ""}
+              </button>`)}
+          </div>
+          <button onClick=${goCooldown} style=${{width:"100%",padding:"15px",fontSize:15,border:"1px solid var(--color-border-secondary)",borderRadius:12}}>
+            <i class="ti ti-player-track-next"></i> Fortsett til nedjogg
+          </button>
+        </div>`}
     </div>
   `;
 }
@@ -1734,17 +1840,11 @@ function RpePicker({ rpe, setRpe, feeling, setFeeling }) {
   return html`
     <div style=${{marginBottom:14}}>
       <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:6}}>Hvor hard føltes økten? (1 = svært lett, 10 = maks)</label>
-      <div style=${{display:"flex",gap:4,marginBottom:8}}>
+      <div style=${{display:"flex",gap:4}}>
         ${[1,2,3,4,5,6,7,8,9,10].map(n=>html`
           <button key=${n} onClick=${()=>setRpe(rpe===n?null:n)} style=${{flex:1,minWidth:0,padding:"7px 0",fontSize:13,fontWeight:rpe===n?700:400,
             background:rpe===n?"#1D9E75":"var(--color-background-secondary)",color:rpe===n?"#fff":"var(--color-text-primary)",
             border:rpe===n?"none":"0.5px solid var(--color-border-tertiary)"}}>${n}</button>`)}
-      </div>
-      <div style=${{display:"flex",gap:8}}>
-        ${[["lett","Lett 😀"],["ok","Ok 🙂"],["tung","Tung 😮‍💨"]].map(([v,l])=>html`
-          <button key=${v} onClick=${()=>setFeeling(feeling===v?null:v)} style=${{flex:1,padding:"8px 0",fontSize:13,
-            background:feeling===v?"#1D9E75":"var(--color-background-secondary)",color:feeling===v?"#fff":"var(--color-text-primary)",
-            border:feeling===v?"none":"0.5px solid var(--color-border-tertiary)"}}>${l}</button>`)}
       </div>
     </div>`;
 }
@@ -1812,20 +1912,31 @@ function ReadinessCard({ readiness, whoopConnected, onManualCheck, onConnectWhoo
     <div style=${{marginBottom:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
       <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Dagsform · trafikklys</p>
       ${m
-        ? html`<div style=${{display:"flex",gap:10,alignItems:"flex-start",marginBottom:10}}>
+        ? html`<div style=${{display:"flex",gap:10,alignItems:"flex-start"}}>
             <span style=${{width:14,height:14,borderRadius:"50%",background:m.dot,flexShrink:0,marginTop:2}}></span>
             <div>
               <p style=${{margin:0,fontSize:14,fontWeight:600}}>${m.label}</p>
               <p style=${{margin:"2px 0 0",fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>${cap(readinessReason(readiness))}. ${m.advice}</p>
             </div>
           </div>`
-        : html`<p style=${{margin:"0 0 10px",fontSize:13,color:"var(--color-text-secondary)"}}>Ingen dagsform registrert i dag.${whoopConnected ? " Whoop-data mangler (ikke synket ennå?) – ta den manuelle sjekken." : ""}</p>`}
-      <div style=${{display:"flex",gap:8}}>
-        <button onClick=${onManualCheck} style=${{flex:1,padding:"10px",fontSize:13}}>30-sek sjekk</button>
-        ${whoopConnected
-          ? html`<button onClick=${onDisconnectWhoop} style=${{padding:"10px 12px",fontSize:13,color:"var(--color-text-secondary)"}}>Koble fra Whoop</button>`
-          : html`<button onClick=${onConnectWhoop} style=${{flex:1,padding:"10px",fontSize:13,background:"#101518",color:"#fff",border:"none"}}>Koble til Whoop</button>`}
+        : html`<p style=${{margin:0,fontSize:13,color:"var(--color-text-secondary)"}}>Ingen dagsform registrert i dag.${whoopConnected ? " Whoop-data mangler (ikke synket ennå?) – ta den manuelle sjekken nederst." : ""}</p>`}
+      ${!whoopConnected && html`
+        <div style=${{display:"flex",gap:8,marginTop:10}}>
+          <button onClick=${onManualCheck} style=${{flex:1,padding:"10px",fontSize:13}}>30-sek sjekk</button>
+          <button onClick=${onConnectWhoop} style=${{flex:1,padding:"10px",fontSize:13,background:"#101518",color:"#fff",border:"none"}}>Koble til Whoop</button>
+        </div>`}
+    </div>`;
+}
+// Whoop-tilkobling nederst (ved Strava) – vises kun når tilkoblet. Holder trafikklyskortet rent.
+function WhoopCard({ onManualCheck, onDisconnectWhoop }) {
+  return html`
+    <div style=${{marginTop:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
+      <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Whoop</p>
+      <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style=${{fontSize:14,color:"var(--color-text-success)",fontWeight:500}}><i class="ti ti-circle-check"></i> Tilkoblet</span>
+        <button onClick=${onDisconnectWhoop} style=${{padding:"8px 12px",fontSize:13,color:"var(--color-text-secondary)"}}>Koble fra Whoop</button>
       </div>
+      <button onClick=${onManualCheck} style=${{width:"100%",marginTop:10,padding:"10px",fontSize:13}}>30-sekunders dagsform-sjekk</button>
     </div>`;
 }
 
@@ -2033,7 +2144,7 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
   }
   return html`
     <div style=${{position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick=${onClose}>
-      <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg) var(--border-radius-lg) 0 0",padding:"20px 22px 26px",maxWidth:480,width:"100%",maxHeight:"88vh",overflowY:"auto",boxSizing:"border-box"}}>
+      <div onClick=${e=>e.stopPropagation()} style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg) var(--border-radius-lg) 0 0",padding:"20px 22px 26px",maxWidth:480,width:"100%",maxHeight:"88vh",overflowY:"auto",overscrollBehavior:"contain",boxSizing:"border-box"}}>
         <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
           <p style=${{margin:0,fontSize:18,fontWeight:600}}>Bygg eget program</p>
           <button onClick=${onClose} style=${{background:"none",border:"none",fontSize:20,color:"var(--color-text-secondary)",cursor:"pointer",padding:4}}><i class="ti ti-x"></i></button>
@@ -2127,7 +2238,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
     voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI}
     onStart=${(c)=>{setChoices(c);setMode("guided");}} onCancel=${()=>setMode("detail")}/></div>`;
 
-  if (mode === "guided") return html`<${GuidedSession} session=${session} choices=${choices}
+  if (mode === "guided") return html`<${GuidedSession} session=${session} choices=${choices} readiness=${readiness}
     voiceOn=${voiceOn} voiceURI=${voiceURI} maxHR=${maxHR} thresholdKmh=${thresholdKmh} unit=${unit}
     onExit=${()=>setMode("detail")} onFinish=${(extra)=>{
       if (extra) { if (extra.rpe !== undefined) setRpe(extra.rpe); if (extra.feeling !== undefined) setFeeling(extra.feeling); }
@@ -2371,6 +2482,8 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
           <span style=${{position:"absolute",top:3,left:notifyOn?25:3,width:24,height:24,borderRadius:"50%",background:"#fff",transition:"left 0.15s"}}></span>
         </button>
       </div>
+
+      ${whoopConnected && html`<${WhoopCard} onManualCheck=${onManualCheck} onDisconnectWhoop=${onDisconnectWhoop}/>`}
 
       <div style=${{marginTop:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
         <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Strava</p>
@@ -2797,7 +2910,7 @@ function App() {
           </div>
         </div>
       </div>
-      <div style=${{flex:1,padding:"16px",overflowY:"auto",paddingBottom:80}}>${body}</div>
+      <div style=${{flex:1,padding:"16px",overflowY:(showBuilder||showHelp||showProfile||showManualCheck||confirmLogout)?"hidden":"auto",paddingBottom:80}}>${body}</div>
       <nav style=${{background:"var(--color-background-primary)",borderTop:"0.5px solid var(--color-border-tertiary)",display:"flex",height:66,flexShrink:0,position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto"}}>
         ${[{id:"program",icon:"ti-run",label:"Program"},{id:"stats",icon:"ti-chart-line",label:"Statistikk"}].map(t => html`
           <button key=${t.id} onClick=${()=>{setTab(t.id);if(t.id==="program")setView({name:"list"});}} style=${{
