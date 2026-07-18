@@ -2886,7 +2886,7 @@ function App() {
   const title = tab==="stats" ? "Statistikk" : "Løpeprogram";
 
   return html`
-    <div style=${{fontFamily:"var(--font-sans)",background:"var(--color-background-secondary)",display:"flex",flexDirection:"column",minHeight:"100vh"}}>
+    <div style=${{fontFamily:"var(--font-sans)",background:"var(--color-background-secondary)",display:"flex",flexDirection:"column",height:"100vh",overflow:"hidden"}}>
       <div style=${{background:"var(--color-background-primary)",borderBottom:"0.5px solid var(--color-border-tertiary)",padding:"14px 18px 12px",flexShrink:0,position:"sticky",top:0,zIndex:10}}>
         <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <p style=${{margin:0,fontSize:18,fontWeight:600}}>${title}</p>
