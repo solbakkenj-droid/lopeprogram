@@ -14,36 +14,41 @@
 
     :root {
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       --color-background-primary: #ffffff;
-      --color-background-secondary: #f5f5f7;
+      --color-background-secondary: #f4f3ee;
       --color-background-info: #eef4ff;
-      --color-background-success: #e8f8f2;
-      --color-text-primary: #1a1a1a;
-      --color-text-secondary: #666;
-      --color-text-tertiary: #aaa;
+      --color-background-success: #e4f3ec;
+      --color-text-primary: #17170f;
+      --color-text-secondary: #6d6d64;
+      --color-text-tertiary: #a2a299;
       --color-text-info: #2563eb;
-      --color-text-success: #1D9E75;
-      --color-border-tertiary: #e8e8e8;
-      --color-border-secondary: #ccc;
+      --color-text-success: #0f6e56;
+      --color-border-tertiary: #e7e5dd;
+      --color-border-secondary: #cbcac2;
       --color-border-info: #bfdbfe;
-      --border-radius-lg: 14px;
+      --color-accent: #1D9E75;
+      --color-accent-dark: #0f6e56;
+      --border-radius-lg: 18px;
       --border-radius-md: 8px;
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --color-background-primary: #1c1c1e;
-        --color-background-secondary: #111113;
+        --color-background-primary: #17191e;
+        --color-background-secondary: #0e0f12;
         --color-background-info: #1a2340;
-        --color-background-success: #0f2a1e;
-        --color-text-primary: #f0f0f0;
-        --color-text-secondary: #999;
-        --color-text-tertiary: #555;
+        --color-background-success: #132a22;
+        --color-text-primary: #ececef;
+        --color-text-secondary: #9a9aa2;
+        --color-text-tertiary: #6a6a72;
         --color-text-info: #60a5fa;
-        --color-text-success: #34d399;
-        --color-border-tertiary: #2e2e30;
+        --color-text-success: #3fe0a5;
+        --color-border-tertiary: #2a2c31;
         --color-border-secondary: #444;
         --color-border-info: #1e3a6e;
+        --color-accent: #2ec08f;
+        --color-accent-dark: #3fe0a5;
       }
     }
 
@@ -69,33 +74,47 @@
     .btn-primary { background: #1D9E75 !important; color: #fff !important; border: none !important; }
     .btn-blue { background: #2563eb !important; color: #fff !important; border: none !important; }
 
+    /* ── redesign: felles uttrykk (teknisk + minimalistisk) ── */
+    .eyebrow { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-text-tertiary); font-weight: 600; }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+    .card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); }
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--color-border-tertiary); border: 0.5px solid var(--color-border-tertiary); border-radius: 16px; overflow: hidden; }
+    .metric-cell { background: var(--color-background-primary); padding: 13px 15px; }
+    .metric-cell .lab { font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-text-tertiary); font-weight: 600; }
+    .metric-cell .val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 600; margin-top: 5px; letter-spacing: -0.01em; }
+    .metric-cell .val small { font-size: 12px; color: var(--color-text-tertiary); font-family: var(--font-sans); font-weight: 500; }
+
     body.force-dark {
-      --color-background-primary: #1c1c1e;
-      --color-background-secondary: #111113;
+      --color-background-primary: #17191e;
+      --color-background-secondary: #0e0f12;
       --color-background-info: #1a2340;
-      --color-background-success: #0f2a1e;
-      --color-text-primary: #f0f0f0;
-      --color-text-secondary: #999;
-      --color-text-tertiary: #555;
+      --color-background-success: #132a22;
+      --color-text-primary: #ececef;
+      --color-text-secondary: #9a9aa2;
+      --color-text-tertiary: #6a6a72;
       --color-text-info: #60a5fa;
-      --color-text-success: #34d399;
-      --color-border-tertiary: #2e2e30;
+      --color-text-success: #3fe0a5;
+      --color-border-tertiary: #2a2c31;
       --color-border-secondary: #444;
       --color-border-info: #1e3a6e;
+      --color-accent: #2ec08f;
+      --color-accent-dark: #3fe0a5;
     }
     body.force-light {
       --color-background-primary: #ffffff;
-      --color-background-secondary: #f5f5f7;
+      --color-background-secondary: #f4f3ee;
       --color-background-info: #eef4ff;
-      --color-background-success: #e8f8f2;
-      --color-text-primary: #1a1a1a;
-      --color-text-secondary: #666;
-      --color-text-tertiary: #aaa;
+      --color-background-success: #e4f3ec;
+      --color-text-primary: #17170f;
+      --color-text-secondary: #6d6d64;
+      --color-text-tertiary: #a2a299;
       --color-text-info: #2563eb;
-      --color-text-success: #1D9E75;
-      --color-border-tertiary: #e8e8e8;
-      --color-border-secondary: #ccc;
+      --color-text-success: #0f6e56;
+      --color-border-tertiary: #e7e5dd;
+      --color-border-secondary: #cbcac2;
       --color-border-info: #bfdbfe;
+      --color-accent: #1D9E75;
+      --color-accent-dark: #0f6e56;
     }
   </style>
 </head>
@@ -1679,26 +1698,36 @@ function GuidedSession({ session, choices, readiness, voiceOn, voiceURI, maxHR, 
       <div style=${{display:"flex",gap:2,marginBottom:18}}>
         ${steps.map((_,i)=>html`<div key=${i} style=${{flex:1,height:3,borderRadius:2,background:i<idx?col:i===idx?col:"var(--color-border-tertiary)",opacity:i<=idx?1:0.5,transition:"all 0.3s"}}></div>`)}
       </div>
-      <p style=${{textAlign:"center",margin:"0 0 4px",fontSize:12,color:"var(--color-text-tertiary)"}}>Steg ${idx+1} / ${steps.length}</p>
+      <p class="eyebrow" style=${{textAlign:"center",margin:"0 0 8px"}}>Steg ${idx+1} / ${steps.length}</p>
       <div style=${{textAlign:"center"}}>
-        <div style=${{display:"inline-block",padding:"4px 14px",borderRadius:20,background:col,color:"#fff",fontSize:14,fontWeight:600,marginBottom:6}}>
+        <div style=${{display:"inline-block",padding:"5px 16px",borderRadius:20,background:col,color:"#fff",fontSize:14,fontWeight:600,marginBottom:8}}>
           ${iLabel(step.intensity)}
         </div>
-        ${zone && html`<p style=${{margin:"0 0 4px",fontSize:13,color:"var(--color-text-secondary)"}}><i class="ti ti-heartbeat"></i> ${zone.bpm[0]}-${zone.bpm[1]} slag/min · ${zone.pct[0]}-${zone.pct[1]}%</p>`}
-        ${pace && html`<p style=${{margin:"0 0 4px",fontSize:13,color:"var(--color-text-secondary)"}}><i class="ti ti-bolt"></i> ${unit==="pace" ? `${pace.pace[0]}-${pace.pace[1]} /km` : `${pace.kmh[0]}-${pace.kmh[1]} km/t`}</p>`}
-        <p style=${{margin:"0 0 14px",fontSize:14,color:"var(--color-text-secondary)"}}>${step.label}</p>
+        <p style=${{margin:"0 0 12px",fontSize:15,color:"var(--color-text-secondary)"}}>${step.label}</p>
       </div>
-      <div style=${{position:"relative",width:160,height:160,margin:"0 auto 20px"}}>
-        <svg width="160" height="160" style=${{transform:"rotate(-90deg)"}}>
-          <circle cx="80" cy="80" r="70" fill="none" stroke="var(--color-border-tertiary)" stroke-width="7"/>
-          <circle cx="80" cy="80" r="70" fill="none" stroke=${col} stroke-width="7"
+      <div style=${{position:"relative",width:170,height:170,margin:"0 auto 20px"}}>
+        <svg width="170" height="170" style=${{transform:"rotate(-90deg)"}}>
+          <circle cx="85" cy="85" r="70" fill="none" stroke="var(--color-border-tertiary)" stroke-width="7"/>
+          <circle cx="85" cy="85" r="70" fill="none" stroke=${col} stroke-width="7"
             stroke-dasharray="${circ} ${circ}" stroke-dashoffset="${Math.round(circ*(1-pct/100))}"
             stroke-linecap="round" style=${{transition:"stroke-dashoffset 1s linear"}}/>
         </svg>
-        <div style=${{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <span style=${{fontSize:38,fontWeight:500,letterSpacing:"-0.02em",fontVariantNumeric:"tabular-nums"}}>${m>0?`${m}:${pad(s)}`:s}</span>
+        <div style=${{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
+          <span class="mono" style=${{fontSize:42,fontWeight:600,letterSpacing:"-0.02em"}}>${m>0?`${m}:${pad(s)}`:s}</span>
+          <span class="eyebrow" style=${{fontSize:10,letterSpacing:"0.18em"}}>${m>0?"min : sek":"sek"}</span>
         </div>
       </div>
+      ${(zone || pace) && html`
+        <div class="metric-grid" style=${{marginBottom:16}}>
+          <div class="metric-cell">
+            <div class="lab"><i class="ti ti-bolt" style=${{fontSize:12,verticalAlign:"-1px"}}></i> Fart</div>
+            <div class="val">${pace ? (unit==="pace" ? `${pace.pace[0]}–${pace.pace[1]}` : `${pace.kmh[0]}–${pace.kmh[1]}`) : "–"}<small> ${unit==="pace"?"/km":"km/t"}</small></div>
+          </div>
+          <div class="metric-cell">
+            <div class="lab"><i class="ti ti-heartbeat" style=${{fontSize:12,verticalAlign:"-1px"}}></i> Puls</div>
+            <div class="val">${zone ? `${zone.bpm[0]}–${zone.bpm[1]}` : "–"}<small> slag/min</small></div>
+          </div>
+        </div>`}
       ${next && html`<p style=${{textAlign:"center",margin:"0 0 16px",fontSize:13,color:"var(--color-text-tertiary)"}}>Neste: ${iLabel(next.intensity)} · ${durText(next.sec)}</p>`}
       <div style=${{display:"flex",gap:10,marginBottom:10}}>
         <button onClick=${toggleRun} class=${running?"":"btn-primary"} style=${{flex:2,padding:"14px",fontSize:16}}>
@@ -1909,14 +1938,18 @@ function ManualCheck({ profile, onClose, onSaved }) {
 function ReadinessCard({ readiness, whoopConnected, onManualCheck, onConnectWhoop, onDisconnectWhoop }) {
   const m = readiness && READINESS[readiness.color];
   return html`
-    <div style=${{marginBottom:14,padding:"16px 18px",background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)"}}>
-      <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Dagsform · trafikklys</p>
+    <div class="card" style=${{marginBottom:14,padding:"16px 18px"}}>
+      <p class="eyebrow" style=${{margin:"0 0 12px"}}>Dagsform</p>
       ${m
-        ? html`<div style=${{display:"flex",gap:10,alignItems:"flex-start"}}>
-            <span style=${{width:14,height:14,borderRadius:"50%",background:m.dot,flexShrink:0,marginTop:2}}></span>
+        ? html`<div style=${{display:"flex",gap:14,alignItems:"center"}}>
+            ${readiness.recovery_score != null
+              ? html`<div style=${{width:52,height:52,borderRadius:"50%",flexShrink:0,border:`3px solid ${m.dot}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <span class="mono" style=${{fontSize:17,fontWeight:600,color:m.dot}}>${readiness.recovery_score}</span>
+                </div>`
+              : html`<span style=${{width:16,height:16,borderRadius:"50%",background:m.dot,flexShrink:0}}></span>`}
             <div>
-              <p style=${{margin:0,fontSize:14,fontWeight:600}}>${m.label}</p>
-              <p style=${{margin:"2px 0 0",fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>${cap(readinessReason(readiness))}. ${m.advice}</p>
+              <p style=${{margin:0,fontSize:15,fontWeight:600,color:m.dot}}>${m.label}</p>
+              <p style=${{margin:"3px 0 0",fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>${cap(readinessReason(readiness))}. ${m.advice}</p>
             </div>
           </div>`
         : html`<p style=${{margin:0,fontSize:13,color:"var(--color-text-secondary)"}}>Ingen dagsform registrert i dag.${whoopConnected ? " Whoop-data mangler (ikke synket ennå?) – ta den manuelle sjekken nederst." : ""}</p>`}
@@ -2263,7 +2296,7 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
         ${done && html`<span style=${{fontSize:13,color:"var(--color-text-success)",fontWeight:500}}><i class="ti ti-circle-check"></i> Gjort ${rec.done_date||""}</span>`}
       </div>
       ${session.optional && html`<span style=${{display:"inline-block",fontSize:12,background:"var(--color-background-info)",color:"var(--color-text-info)",padding:"2px 10px",borderRadius:6,marginBottom:8}}>Valgfri</span>`}
-      <p style=${{margin:"0 0 16px",fontSize:14,color:"var(--color-text-secondary)"}}>${segmentSummary(session)} · ca. ${sessionMinutes(session)} min</p>
+      <p class="mono" style=${{margin:"0 0 16px",fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>${segmentSummary(session)} · ca. ${sessionMinutes(session)} min</p>
 
       ${!done && isHardSession(session) && html`<${ReadinessBanner} readiness=${readiness}/>`}
 
@@ -2271,12 +2304,12 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
         <${SegmentList} session=${session} maxHR=${maxHR} thresholdKmh=${thresholdKmh} unit=${unit}/>
       </div>
 
-      <button onClick=${()=>setMode("config")} class="btn-blue" style=${{width:"100%",padding:"14px",fontSize:15,marginBottom:16}}>
+      <button onClick=${()=>setMode("config")} class="btn-primary" style=${{width:"100%",padding:"15px",fontSize:15,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
         <i class="ti ti-player-play"></i> Start guidet økt
       </button>
 
       <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"18px",marginBottom:14}}>
-        <p style=${{margin:"0 0 14px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Logg økten</p>
+        <p class="eyebrow" style=${{margin:"0 0 14px"}}>Logg økten</p>
         ${!isStrength && stravaConnected && html`
           <div style=${{marginBottom:14}}>
             <button onClick=${hentStrava} disabled=${sBusy} style=${{width:"100%",padding:"11px",fontSize:14,background:"#FC4C02",color:"#fff",border:"none"}}>
@@ -2324,9 +2357,9 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
         const paste = stravaPasteText(session, { threshold_kmh: thr, easy_kmh: easy }, thresholdKmh);
         if (!paste) return null;
         return html`
-          <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px solid var(--color-border-tertiary)",padding:"16px 18px",marginBottom:14}}>
-            <p style=${{margin:"0 0 8px",fontSize:12,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Strava-beskrivelse</p>
-            <p style=${{margin:"0 0 10px",fontSize:13,lineHeight:1.5,color:"var(--color-text-secondary)",userSelect:"text",WebkitUserSelect:"text"}}>${paste}</p>
+          <div style=${{background:"var(--color-background-primary)",borderRadius:"var(--border-radius-lg)",border:"0.5px dashed var(--color-border-secondary)",padding:"16px 18px",marginBottom:14}}>
+            <p class="eyebrow" style=${{margin:"0 0 8px"}}>Strava-beskrivelse</p>
+            <p class="mono" style=${{margin:"0 0 10px",fontSize:13,lineHeight:1.6,color:"var(--color-text-secondary)",userSelect:"text",WebkitUserSelect:"text"}}>${paste}</p>
             <button onClick=${async()=>{ try { await navigator.clipboard.writeText(paste); setCopied(true); setTimeout(()=>setCopied(false),2000); } catch {} }} style=${{width:"100%",padding:"10px",fontSize:13}}>
               <i class=${copied ? "ti ti-check" : "ti ti-copy"}></i> ${copied ? "Kopiert!" : "Kopier til Strava"}
             </button>
@@ -2405,8 +2438,8 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
         <div style=${{display:"flex",gap:8,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
           ${[["builtin","12-ukers"], ...programs.map(p=>[p.id, progLabel(p)])].map(([id,label])=>html`
             <button key=${id} onClick=${()=>setProgTab(id)} style=${{
-              flexShrink:0,padding:"8px 14px",fontSize:13,fontWeight:progTab===id?600:400,borderRadius:20,
-              background:progTab===id?"#1D9E75":"var(--color-background-primary)",color:progTab===id?"#fff":"var(--color-text-primary)",
+              flexShrink:0,padding:"8px 15px",fontSize:13,fontWeight:progTab===id?600:500,borderRadius:20,
+              background:progTab===id?"var(--color-accent)":"var(--color-background-primary)",color:progTab===id?"#fff":"var(--color-text-secondary)",
               border:progTab===id?"none":"0.5px solid var(--color-border-tertiary)"}}>${label}</button>`)}
         </div>`}
 
@@ -2416,16 +2449,15 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
       ${custom && html`<${WeekCalendar} program=${custom} log=${log} onOpen=${onOpenSession}/>`}
 
       ${next && html`
-        <button onClick=${()=>onOpenSession(next)} style=${{
-          width:"100%",textAlign:"left",cursor:"pointer",border:"none",
-          background:"linear-gradient(135deg,#1D9E75,#178a64)",color:"#fff",
-          borderRadius:"var(--border-radius-lg)",padding:"18px 20px",marginBottom:18}}>
-          <p style=${{margin:"0 0 4px",fontSize:12,opacity:0.85,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:500}}>Neste økt</p>
-          <p style=${{margin:"0 0 4px",fontSize:17,fontWeight:600}}>Uke ${next.week} · ${next.plannedDay}${next.plannedDate ? ` ${(d=>`${d.getDate()}.${d.getMonth()+1}`)(parseKey(next.plannedDate))}` : ""}${next.type === "strength" ? " · Styrke" : ""}</p>
-          <p style=${{margin:0,fontSize:13,opacity:0.9,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${segmentSummary(next)}</p>
+        <button onClick=${()=>onOpenSession(next)} class="card" style=${{
+          width:"100%",textAlign:"left",cursor:"pointer",padding:"18px 20px",marginBottom:18,display:"block"}}>
+          <p class="eyebrow" style=${{margin:"0 0 8px",color:"var(--color-accent-dark)"}}>Neste økt</p>
+          <p style=${{margin:"0 0 12px",fontSize:22,fontWeight:600,letterSpacing:"-0.01em",lineHeight:1.15}}>Uke ${next.week} · ${next.plannedDay}${next.plannedDate ? ` ${(d=>`${d.getDate()}.${d.getMonth()+1}`)(parseKey(next.plannedDate))}` : ""}${next.type === "strength" ? " · Styrke" : ""}</p>
+          <p class="mono" style=${{margin:0,fontSize:13,color:"var(--color-text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${segmentSummary(next)}</p>
+          <span style=${{display:"inline-flex",alignItems:"center",gap:6,marginTop:14,fontSize:14,fontWeight:600,color:"var(--color-accent-dark)"}}>Åpne økta <i class="ti ti-arrow-right"></i></span>
         </button>`}
 
-      <p style=${{margin:"0 0 12px",fontSize:12,color:"var(--color-text-secondary)"}}>${totalDone} økter fullført totalt</p>
+      <p class="eyebrow" style=${{margin:"0 0 12px"}}>${totalDone} økter fullført totalt</p>
 
       <div style=${{display:"flex",flexDirection:"column",gap:10}}>
         ${weeks.map(w => {
@@ -2441,10 +2473,10 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
                 ${complete ? html`<i class="ti ti-check" style=${{fontSize:18}}></i>` : w.week}
               </div>
               <div style=${{flex:1,minWidth:0}}>
-                <p style=${{margin:0,fontSize:11,color:"var(--color-text-tertiary)",textTransform:"uppercase",letterSpacing:"0.06em"}}>${w.phase}</p>
-                <p style=${{margin:"1px 0 0",fontSize:15,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${w.title}</p>
+                <p class="eyebrow" style=${{margin:0}}>${w.phase}</p>
+                <p style=${{margin:"2px 0 0",fontSize:15,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${w.title}</p>
               </div>
-              <span style=${{fontSize:12,color:"var(--color-text-tertiary)",flexShrink:0}}>${dc}/${w.sessions.length}</span>
+              <span class="mono" style=${{fontSize:13,color:"var(--color-text-tertiary)",flexShrink:0}}>${dc}/${w.sessions.length}</span>
             </button>`;
         })}
       </div>
