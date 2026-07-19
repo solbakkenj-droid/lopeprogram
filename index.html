@@ -2815,6 +2815,24 @@ function App() {
   const [whoopConnected, setWhoopConnected] = useState(false);
   const [notifyOn, setNotifyOnState] = useState(() => localStorage.getItem("lp_notify") === "1");
 
+  // Henter dagens dagsform: Whoop-recovery (auto) foran manuell sjekk (fallback).
+  // Én gang per dag – finnes allerede en Whoop-rad for i dag, hentes den ikke på nytt.
+  const whoopConnRef = useRef(false);
+  const readinessRef = useRef(null);
+  useEffect(()=>{ readinessRef.current = readiness; }, [readiness]);
+  async function syncReadiness(wConn) {
+    let r = await loadTodayReadiness();
+    if (wConn && (!r || r.source !== "whoop")) {
+      const rec = await whoopCall({ action:"recovery" });
+      if (rec && rec.score != null) {
+        r = { day: todayKey(), source: "whoop", color: recoveryColor(rec.score),
+              recovery_score: rec.score, hrv: rec.hrv ?? null, resting_hr: rec.resting_hr ?? null, sleep_pct: rec.sleep_pct ?? null };
+        try { await saveReadiness(r); } catch {}
+      }
+    }
+    setReadiness(r);
+  }
+
   useEffect(() => {
     const body = document.body;
     body.classList.remove("force-dark","force-light");
@@ -2860,19 +2878,31 @@ function App() {
       const wst = await whoopCall({ action:"status" });
       const wConn = !!(wst && wst.connected);
       setWhoopConnected(wConn);
-      let r = await loadTodayReadiness();
-      // Whoop-recovery hentes daglig og overstyrer manuell sjekk (auto foran fallback)
-      if (wConn && (!r || r.source !== "whoop")) {
-        const rec = await whoopCall({ action:"recovery" });
-        if (rec && rec.score != null) {
-          r = { day: todayKey(), source: "whoop", color: recoveryColor(rec.score),
-                recovery_score: rec.score, hrv: rec.hrv ?? null, resting_hr: rec.resting_hr ?? null, sleep_pct: rec.sleep_pct ?? null };
-          try { await saveReadiness(r); } catch {}
-        }
-      }
-      setReadiness(r);
+      whoopConnRef.current = wConn;
+      await syncReadiness(wConn);
     } catch {}
   })(); } },[session]);
+
+  // iOS-PWA på hjemskjerm laster ikke siden på nytt når man åpner den igjen – den
+  // gjenopptar frosset tilstand. Hent derfor dagsform på nytt når appen kommer i
+  // forgrunnen på en NY dag, så morgenens Whoop-recovery faktisk vises.
+  useEffect(()=>{ if(!session) return;
+    const onForeground = ()=>{
+      if (document.visibilityState === "hidden") return;
+      if (!whoopConnRef.current) return;
+      const cur = readinessRef.current;
+      if (cur && cur.source === "whoop" && cur.day === todayKey()) return; // har alt dagens
+      syncReadiness(whoopConnRef.current);
+    };
+    document.addEventListener("visibilitychange", onForeground);
+    window.addEventListener("focus", onForeground);
+    window.addEventListener("pageshow", onForeground);
+    return ()=>{
+      document.removeEventListener("visibilitychange", onForeground);
+      window.removeEventListener("focus", onForeground);
+      window.removeEventListener("pageshow", onForeground);
+    };
+  },[session]);
   const saveProfileFields = async (patch) => {
     const next = { threshold_kmh: patch.threshold_kmh !== undefined ? patch.threshold_kmh : thresholdKmh, max_hr: patch.max_hr !== undefined ? patch.max_hr : maxHR };
     setThresholdKmh(next.threshold_kmh); setMaxHR(next.max_hr);
