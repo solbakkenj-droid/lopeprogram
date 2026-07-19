@@ -2816,17 +2816,22 @@ function App() {
   const [notifyOn, setNotifyOnState] = useState(() => localStorage.getItem("lp_notify") === "1");
 
   // Henter dagens dagsform: Whoop-recovery (auto) foran manuell sjekk (fallback).
-  // Én gang per dag – finnes allerede en Whoop-rad for i dag, hentes den ikke på nytt.
+  // Én gang per dag – har vi først en Whoop-rad for i dag MED cycle_id, hentes den
+  // ikke på nytt (recovery-scoren endrer seg ikke utover dagen).
   const whoopConnRef = useRef(false);
   const readinessRef = useRef(null);
   useEffect(()=>{ readinessRef.current = readiness; }, [readiness]);
+  // En lagret Whoop-rad uten cycle_id er skrevet av gammel kode og kan inneholde
+  // gårsdagens tall – da må den hentes på nytt i stedet for å bli stående.
+  const readinessStale = (r) => !r || r.source !== "whoop" || r.cycle_id == null;
   async function syncReadiness(wConn) {
     let r = await loadTodayReadiness();
-    if (wConn && (!r || r.source !== "whoop")) {
+    if (wConn && readinessStale(r)) {
       const rec = await whoopCall({ action:"recovery" });
       if (rec && rec.score != null) {
         r = { day: todayKey(), source: "whoop", color: recoveryColor(rec.score),
-              recovery_score: rec.score, hrv: rec.hrv ?? null, resting_hr: rec.resting_hr ?? null, sleep_pct: rec.sleep_pct ?? null };
+              recovery_score: rec.score, hrv: rec.hrv ?? null, resting_hr: rec.resting_hr ?? null,
+              sleep_pct: rec.sleep_pct ?? null, cycle_id: rec.cycle_id ?? null };
         try { await saveReadiness(r); } catch {}
       }
     }
@@ -2891,7 +2896,7 @@ function App() {
       if (document.visibilityState === "hidden") return;
       if (!whoopConnRef.current) return;
       const cur = readinessRef.current;
-      if (cur && cur.source === "whoop" && cur.day === todayKey()) return; // har alt dagens
+      if (cur && cur.day === todayKey() && !readinessStale(cur)) return; // har alt dagens
       syncReadiness(whoopConnRef.current);
     };
     document.addEventListener("visibilitychange", onForeground);
