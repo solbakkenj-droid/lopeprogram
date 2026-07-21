@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Løpeprogram">
+  <meta name="apple-mobile-web-app-title" content="Flyt">
   <meta name="mobile-web-app-capable" content="yes">
-  <title>Løpeprogram</title>
+  <title>Flyt</title>
   <!-- Hjemskjerm-ikon på iPhone (180x180, full flate – iOS runder hjørnene selv).
        Filene ligger i repoet ved siden av index.html og lastes opp av deploy.command. -->
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
@@ -2883,7 +2883,7 @@ function LoginScreen() {
     <div style=${{minHeight:"100vh",display:"flex",flexDirection:"column",justifyContent:"center",padding:"24px",maxWidth:420,margin:"0 auto"}}>
       <div style=${{textAlign:"center",marginBottom:28}}>
         <i class="ti ti-run" style=${{fontSize:40,color:"var(--color-accent)",display:"block",marginBottom:10}}></i>
-        <h1 style=${{margin:0,fontSize:26,fontWeight:600,letterSpacing:"-0.02em"}}>Løpeprogram</h1>
+        <h1 style=${{margin:0,fontSize:26,fontWeight:600,letterSpacing:"-0.02em"}}>Flyt</h1>
         <p style=${{margin:"6px 0 0",fontSize:14,color:"var(--color-text-secondary)"}}>${mode==="signup" ? "Opprett din egen treningslogg" : "Logg inn for din egen treningslogg"}</p>
       </div>
       <div class="card" style=${{padding:"20px"}}>
@@ -3137,7 +3137,7 @@ function App() {
       const s = programSessions(act).find(x => x.plannedDate === today && !(log[x.id] && log[x.id].done));
       if (s && sessionStorage.getItem("lp_notified") !== today) {
         sessionStorage.setItem("lp_notified", today);
-        new Notification("Løpeprogram", { body: `I dag: ${s.type === "strength" ? `styrkeøkt (ca. ${sessionMinutes(s)} min)` : segmentSummary(s)}` });
+        new Notification("Flyt", { body: `I dag: ${s.type === "strength" ? `styrkeøkt (ca. ${sessionMinutes(s)} min)` : segmentSummary(s)}` });
       }
     } catch {}
   }, [ready, notifyOn, programs]);
@@ -3180,7 +3180,7 @@ function App() {
     readiness=${readiness} whoopConnected=${whoopConnected} onManualCheck=${()=>setShowManualCheck(true)} onConnectWhoop=${connectWhoop} onDisconnectWhoop=${disconnectWhoop}
     notifyOn=${notifyOn} onToggleNotify=${toggleNotify}/>`;
 
-  const title = tab==="stats" ? "Statistikk" : "Løpeprogram";
+  const title = tab==="stats" ? "Statistikk" : "Flyt";
 
   return html`
     <div style=${{fontFamily:"var(--font-sans)",background:"var(--color-background-secondary)",display:"flex",flexDirection:"column",height:"100vh",overflow:"hidden"}}>
