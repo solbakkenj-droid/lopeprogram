@@ -1282,6 +1282,72 @@ function sessionMinutes(session) {
   return Math.round(s/60);
 }
 
+// ─── UKESESTIMAT: tid per intensitet, tid per pulssone, estimert distanse ─────
+// Alt bygger på PLANLAGTE segmenter (nedre grense for ranges, som sessionMinutes),
+// og på DINE EGNE loggede farter. Mangler farten, vises ingen km – ingen antatte tall.
+function intensitySeconds(session) {
+  const m = {};
+  const add = (intensity, sec) => { if (!intensity || !sec) return; m[intensity] = (m[intensity] || 0) + sec; };
+  session.segments.forEach(seg => {
+    if (seg.kind === "intervals") {
+      const n = seg.repeatsRange ? seg.repeatsRange[0] : seg.repeats;
+      add(seg.work.intensity, n * seg.work.durationSec);
+      add(seg.rest.intensity, n * seg.rest.durationSec);
+    } else if (seg.kind === "strength_ex") {
+      add("styrke", seg.sets * (seg.workSec + (seg.restSec || 0)));
+    } else {
+      add(seg.intensity, seg.durationRangeSec ? seg.durationRangeSec[0] : seg.durationSec);
+    }
+  });
+  return m;
+}
+// Median av egne loggede farter. work_kmh (rask klynge) = løpefart, easy_kmh = gangfart.
+function measuredSpeeds(log) {
+  const run = [], walk = [];
+  Object.values(log || {}).forEach(r => {
+    if (!r || !r.done) return;
+    if (r.threshold_kmh > 0) run.push(r.threshold_kmh);
+    if (r.easy_kmh > 0) walk.push(r.easy_kmh);
+  });
+  return { run: run.length ? median(run) : null, walk: walk.length ? median(walk) : null, n: run.length };
+}
+function estKmh(intensity, sp, thresholdKmh) {
+  if (intensity === "pause" || intensity === "hvile" || intensity === "styrke") return 0;
+  const rank = irank(intensity);
+  if (rank <= 2) return sp.walk;                      // gange / rask gange
+  if (rank >= 7) return thresholdKmh || sp.run;       // terskel / test
+  return sp.run;                                      // jogg / rolig løp
+}
+// Pulssoner gruppert fra HR_ZONES (bokas ankerpunkter). Intensiteter uten
+// pulsanker (pause, hvile, styrke) telles ikke med.
+const HR_BANDS = [
+  { label: "Gange / oppvarming", max: 65 },
+  { label: "Rolig",              max: 75 },
+  { label: "Moderat",            max: 80 },
+  { label: "Terskel",            max: 88 },
+  { label: "Maks",               max: 101 },
+];
+function weekEstimate(sessions, log, thresholdKmh) {
+  const sp = measuredSpeeds(log);
+  const secs = {};
+  sessions.forEach(s => { const m = intensitySeconds(s); for (const k in m) secs[k] = (secs[k] || 0) + m[k]; });
+  let totalSec = 0, meters = 0, missing = false;
+  const bands = HR_BANDS.map(b => ({ ...b, sec: 0 }));
+  for (const k in secs) {
+    const sec = secs[k];
+    totalSec += sec;
+    const kmh = estKmh(k, sp, thresholdKmh);
+    if (kmh == null) missing = true; else meters += (sec / 3600) * kmh * 1000;
+    const z = HR_ZONES[k];
+    if (z) {
+      const mid = (z[0] + z[1]) / 2;
+      (bands.find(b => mid < b.max) || bands[bands.length - 1]).sec += sec;
+    }
+  }
+  return { minutes: Math.round(totalSec / 60), km: missing ? null : Math.round(meters / 100) / 10,
+           bands: bands.filter(b => b.sec > 0), speeds: sp };
+}
+
 // Fart-konvertering (kanonisk = km/t)
 function kmhToPace(kmh) {
   if (!kmh || kmh <= 0) return "";
@@ -2395,8 +2461,11 @@ function SessionView({ session, week, log, unit, voiceOn, setVoiceOn, voiceURI, 
   `;
 }
 
-function WeekView({ week, log, onBack, onOpen }) {
+function WeekView({ week, log, onBack, onOpen, thresholdKmh, maxHR }) {
   const doneCount = week.sessions.filter(s => log[s.id] && log[s.id].done).length;
+  const est = weekEstimate(week.sessions, log, thresholdKmh);
+  const hh = Math.floor(est.minutes / 60), mm = est.minutes % 60;
+  const bandMax = Math.max(...est.bands.map(b => b.sec), 1);
   return html`
     <div>
       <button onClick=${onBack} style=${{background:"none",border:"none",color:"var(--color-text-secondary)",fontSize:14,padding:"0 0 14px",cursor:"pointer"}}>
@@ -2406,6 +2475,36 @@ function WeekView({ week, log, onBack, onOpen }) {
       <h1 style=${{margin:"0 0 8px",fontSize:22,fontWeight:600,lineHeight:1.3}}>${week.title}</h1>
       ${week.info && html`<p style=${{margin:"0 0 8px",fontSize:14,lineHeight:1.6,color:"var(--color-text-secondary)"}}>${week.info}</p>`}
       <p style=${{margin:"0 0 18px",fontSize:13,color:"var(--color-text-tertiary)"}}>${doneCount} / ${week.sessions.length} økter gjort</p>
+
+      <div class="metric-grid" style=${{marginBottom:14}}>
+        <div class="metric-cell">
+          <div class="lab">Planlagt tid</div>
+          <div class="val">${hh ? `${hh}t ${pad(mm)}` : `${mm} min`}</div>
+        </div>
+        <div class="metric-cell">
+          <div class="lab">Estimert distanse</div>
+          <div class="val">${est.km != null ? `${est.km} km` : "–"}</div>
+        </div>
+      </div>
+      ${est.bands.length > 0 && html`
+        <div class="card" style=${{padding:"16px 18px",marginBottom:18}}>
+          <p class="eyebrow" style=${{margin:"0 0 12px"}}>Tid i pulssoner</p>
+          ${est.bands.map(b => html`
+            <div key=${b.label} style=${{marginBottom:10}}>
+              <div style=${{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:4}}>
+                <span style=${{fontSize:13}}>${b.label}${maxHR && b.max <= 100 ? html`<span style=${{fontSize:12,color:"var(--color-text-tertiary)"}}> · under ${Math.round(b.max/100*maxHR)}</span>` : ""}</span>
+                <span class="mono" style=${{fontSize:13,color:"var(--color-text-secondary)",flexShrink:0}}>${Math.round(b.sec/60)} min</span>
+              </div>
+              <div style=${{height:6,borderRadius:3,background:"var(--color-background-secondary)",overflow:"hidden"}}>
+                <div style=${{height:"100%",width:`${Math.round((b.sec/bandMax)*100)}%`,background:"var(--color-accent)",borderRadius:3}}></div>
+              </div>
+            </div>`)}
+          <p style=${{margin:"10px 0 0",fontSize:12,color:"var(--color-text-tertiary)",lineHeight:1.5}}>
+            ${est.km != null
+              ? `Distansen er et estimat fra dine egne loggede farter (${est.speeds.n} økt${est.speeds.n===1?"":"er"}), ikke et mål.`
+              : "Logg fart på noen økter (eller hent fra Strava), så estimeres distansen her."}
+          </p>
+        </div>`}
 
       <div style=${{display:"flex",flexDirection:"column",gap:10}}>
         ${week.sessions.map(s => {
@@ -2585,10 +2684,13 @@ function StatsView({ log, unit, extraSessions }) {
     .filter(x => x.r && (x.r.note || x.r.rpe != null || x.r.feeling))
     .sort((a,b)=> parseKey(b.r.done_date||todayKey()) - parseKey(a.r.done_date||todayKey()));
 
-  const hrPoints = sessions.map(s=>({ s, r: log[s.id] }))
-    .filter(x => x.r && x.r.done && x.r.work_hr != null)
+  // Fart per puls = meter per hjerteslag i arbeidsdelen. Løper du fortere på samme
+  // puls, stiger tallet – det er dette som faktisk sier noe om form. Rå puls alene
+  // gjør det ikke: den styres like mye av varme, søvn og stress som av formen.
+  const effPoints = sessions.map(s=>({ s, r: log[s.id] }))
+    .filter(x => x.r && x.r.done && x.r.work_hr > 0 && x.r.threshold_kmh > 0 && x.s.type !== "strength")
     .sort((a,b)=> parseKey(a.r.done_date||todayKey()) - parseKey(b.r.done_date||todayKey()))
-    .map(x => ({ hr: x.r.work_hr, date: x.r.done_date }));
+    .map(x => ({ mpb: (x.r.threshold_kmh * 1000 / 60) / x.r.work_hr, date: x.r.done_date }));
   const weekKm = PROGRAM.weeks.map(w => ({
     week: w.week,
     km: Math.round(w.sessions.reduce((sum,s)=>{ const r=log[s.id]; return sum + (r&&r.distance_m ? r.distance_m/1000 : 0); },0) * 10)/10,
@@ -2620,11 +2722,12 @@ function StatsView({ log, unit, extraSessions }) {
           : html`<${LineChart} points=${withThr.map(x=>({date:x.r.done_date,kmh:x.r.threshold_kmh}))} unit=${unit}/>`}
       </div>
 
-      ${hrPoints.length >= 2 && html`
+      ${effPoints.length >= 2 && html`
         <div class="card" style=${{padding:"18px",marginBottom:16}}>
-          <p class="eyebrow" style=${{margin:"0 0 4px"}}>Puls under løp over tid</p>
-          <p style=${{margin:"0 0 14px",fontSize:13,color:"var(--color-text-tertiary)"}}>Lavere puls på samme fart = bedre form</p>
-          <${HrChart} points=${hrPoints}/>
+          <p class="eyebrow" style=${{margin:"0 0 4px"}}>Fart per puls</p>
+          <p style=${{margin:"0 0 14px",fontSize:13,color:"var(--color-text-tertiary)"}}>Meter per hjerteslag – stiger den, er formen bedre</p>
+          <${EffChart} points=${effPoints}/>
+          <p style=${{margin:"10px 0 0",fontSize:12,color:"var(--color-text-tertiary)",lineHeight:1.5}}>Sammenlign helst like økter: tallet påvirkes også av hvor hardt du gikk ut.</p>
         </div>`}
 
       ${anyKm && html`
@@ -2695,12 +2798,12 @@ function LineChart({ points, unit }) {
     color="var(--color-accent)"/>`;
 }
 
-function HrChart({ points }) {
+function EffChart({ points }) {
   return html`<${AxisChart}
-    vals=${points.map(p=>p.hr)}
+    vals=${points.map(p=>p.mpb)}
     dates=${points.map(p=>p.date)}
-    fmt=${v => Math.round(v)+""}
-    color="#ff3b30"/>`;
+    fmt=${v => (Math.round(v*100)/100).toFixed(2)}
+    color="var(--color-accent)"/>`;
 }
 
 function VolumeChart({ weeks }) {
@@ -3035,7 +3138,7 @@ function App() {
   let body;
   if (!ready) body = html`<p style=${{color:"var(--color-text-secondary)",textAlign:"center",paddingTop:40}}>Laster...</p>`;
   else if (tab === "stats") body = html`<${StatsView} log=${log} unit=${unit} extraSessions=${programs.flatMap(p=>programSessions(p))}/>`;
-  else if (view.name === "week") body = html`<${WeekView} key=${"w"+(view.prog||"b")+view.week} week=${weekObj(view.week, view.prog)} log=${log} onBack=${()=>setView({name:"list"})} onOpen=${openSession}/>`;
+  else if (view.name === "week") body = html`<${WeekView} key=${"w"+(view.prog||"b")+view.week} week=${weekObj(view.week, view.prog)} log=${log} onBack=${()=>setView({name:"list"})} onOpen=${openSession} thresholdKmh=${thresholdKmh} maxHR=${maxHR}/>`;
   else if (view.name === "session") body = html`<${SessionView} key=${view.sessionId} session=${sessionObj(view.week, view.sessionId, view.prog)} week=${weekObj(view.week, view.prog)} log=${log} unit=${unit} voiceOn=${voiceOn} setVoiceOn=${setVoiceOn} voiceURI=${voiceURI} setVoiceURI=${setVoiceURI} stravaConnected=${stravaConnected} maxHR=${maxHR} thresholdKmh=${thresholdKmh} readiness=${readiness} onBack=${()=>setView({name:"week",week:view.week,prog:view.prog})} onSave=${saveRec} onDelete=${deleteRec}/>`;
   else body = html`<${ProgramView} log=${log} onOpenWeek=${openWeek} onOpenSession=${openSession} stravaConnected=${stravaConnected} onConnectStrava=${connectStrava} onDisconnectStrava=${disconnectStrava}
     programs=${programs} progTab=${progTab} setProgTab=${setProgTab} onOpenBuilder=${()=>setShowBuilder(true)} onDeleteProgram=${removeProgram}
