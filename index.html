@@ -175,6 +175,13 @@ async function loadTodayReadiness() {
   try { const { data } = await db.from("lop_readiness").select("*").eq("day", todayKey()).maybeSingle(); return data || null; }
   catch { return null; }
 }
+// Siste lagrede dagsform FØR en gitt dag – brukes til å avvise data som ikke er ny.
+async function loadLastReadinessBefore(day) {
+  try {
+    const { data } = await db.from("lop_readiness").select("*").lt("day", day).order("day", { ascending: false }).limit(1);
+    return (data && data[0]) || null;
+  } catch { return null; }
+}
 async function saveReadiness(row) {
   const { data: { user } } = await db.auth.getUser();
   await db.from("lop_readiness").upsert({ ...row, user_id: user ? user.id : null }, { onConflict: "user_id,day" });
@@ -1944,9 +1951,17 @@ function ReadinessCard({ readiness, whoopConnected, onManualCheck, onConnectWhoo
       ${m
         ? html`<div style=${{display:"flex",gap:14,alignItems:"center"}}>
             ${readiness.recovery_score != null
-              ? html`<div style=${{width:52,height:52,borderRadius:"50%",flexShrink:0,border:`3px solid ${m.dot}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <span class="mono" style=${{fontSize:17,fontWeight:600,color:m.dot}}>${readiness.recovery_score}</span>
-                </div>`
+              ? (()=>{ // ringen fylles like langt rundt som scoren er høy (100 % = hel sirkel)
+                  const R = 23, C = 2*Math.PI*R;
+                  const pct = Math.max(0, Math.min(100, readiness.recovery_score));
+                  return html`<div style=${{position:"relative",width:52,height:52,flexShrink:0}}>
+                    <svg width="52" height="52" viewBox="0 0 52 52" style=${{display:"block",transform:"rotate(-90deg)"}}>
+                      <circle cx="26" cy="26" r=${R} fill="none" stroke="var(--color-border)" stroke-width="4"/>
+                      <circle cx="26" cy="26" r=${R} fill="none" stroke=${m.dot} stroke-width="4" stroke-linecap="round"
+                              stroke-dasharray=${C.toFixed(2)} stroke-dashoffset=${(C*(1-pct/100)).toFixed(2)}/>
+                    </svg>
+                    <span class="mono" style=${{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,fontWeight:600,color:m.dot}}>${readiness.recovery_score}</span>
+                  </div>`; })()
               : html`<span style=${{width:16,height:16,borderRadius:"50%",background:m.dot,flexShrink:0}}></span>`}
             <div>
               <p style=${{margin:0,fontSize:15,fontWeight:600,color:m.dot}}>${m.label}</p>
@@ -2816,24 +2831,41 @@ function App() {
   const [notifyOn, setNotifyOnState] = useState(() => localStorage.getItem("lp_notify") === "1");
 
   // Henter dagens dagsform: Whoop-recovery (auto) foran manuell sjekk (fallback).
-  // Én gang per dag – har vi først en Whoop-rad for i dag MED cycle_id, hentes den
-  // ikke på nytt (recovery-scoren endrer seg ikke utover dagen).
+  // Cachen valideres mot HVILKEN Whoop-cycle den gjelder, ikke mot kalenderdatoen:
+  // en Whoop-cycle bytter når du sover, ikke ved midnatt. Åpner du appen etter
+  // midnatt men FØR du har sovet, er nyeste cycle fortsatt gårsdagens – da må ikke
+  // gårsdagens recovery bli stående som «dagens» resten av døgnet.
   const whoopConnRef = useRef(false);
   const readinessRef = useRef(null);
+  const lastSyncRef = useRef(0);
   useEffect(()=>{ readinessRef.current = readiness; }, [readiness]);
-  // En lagret Whoop-rad uten cycle_id er skrevet av gammel kode og kan inneholde
-  // gårsdagens tall – da må den hentes på nytt i stedet for å bli stående.
-  const readinessStale = (r) => !r || r.source !== "whoop" || r.cycle_id == null;
+  const sameNum = (a,b) => a != null && b != null && Math.abs(a-b) < 1e-6;
+  // Er dette faktisk NY data? Man får aldri samme recovery/hvilepuls/HRV to dager
+  // på rad, så identiske tall (eller samme cycle) som forrige lagrede dag betyr at
+  // Whoop ennå ikke har regnet ut morgenens score.
+  function isFreshRecovery(rec, prev) {
+    if (!rec || rec.score == null) return false;
+    if (!prev) return true;
+    if (prev.cycle_id != null && rec.cycle_id != null) return String(prev.cycle_id) !== String(rec.cycle_id);
+    return !(sameNum(rec.score, prev.recovery_score) && sameNum(rec.hrv, prev.hrv) && sameNum(rec.resting_hr, prev.resting_hr));
+  }
   async function syncReadiness(wConn) {
     let r = await loadTodayReadiness();
-    if (wConn && readinessStale(r)) {
-      const rec = await whoopCall({ action:"recovery" });
-      if (rec && rec.score != null) {
-        r = { day: todayKey(), source: "whoop", color: recoveryColor(rec.score),
-              recovery_score: rec.score, hrv: rec.hrv ?? null, resting_hr: rec.resting_hr ?? null,
-              sleep_pct: rec.sleep_pct ?? null, cycle_id: rec.cycle_id ?? null };
-        try { await saveReadiness(r); } catch {}
-      }
+    if (!wConn) { setReadiness(r); return; }
+    const known = (r && r.source === "whoop" && r.cycle_id != null) ? r.cycle_id : null;
+    const rec = await whoopCall({ action:"recovery", known_cycle: known });
+    // Fortsatt samme cycle som den lagrede raden → cachen er gyldig, ingen ny henting.
+    if (rec && rec.status === "unchanged") { setReadiness(r); return; }
+    const prev = await loadLastReadinessBefore(todayKey());
+    if (isFreshRecovery(rec, prev)) {
+      r = { day: todayKey(), source: "whoop", color: recoveryColor(rec.score),
+            recovery_score: rec.score, hrv: rec.hrv ?? null, resting_hr: rec.resting_hr ?? null,
+            sleep_pct: rec.sleep_pct ?? null, cycle_id: rec.cycle_id ?? null };
+      try { await saveReadiness(r); } catch {}
+    } else if (r && r.source === "whoop") {
+      // Lagret rad hører til en gammel cycle, og ny score finnes ikke ennå → vis
+      // heller ingenting enn gårsdagens tall. Raden overskrives ved neste henting.
+      r = null;
     }
     setReadiness(r);
   }
@@ -2885,6 +2917,7 @@ function App() {
       setWhoopConnected(wConn);
       whoopConnRef.current = wConn;
       await syncReadiness(wConn);
+      lastSyncRef.current = Date.now();
     } catch {}
   })(); } },[session]);
 
@@ -2895,8 +2928,12 @@ function App() {
     const onForeground = ()=>{
       if (document.visibilityState === "hidden") return;
       if (!whoopConnRef.current) return;
+      // Sjekk mot Whoop maks hvert 5. minutt (ett lite cycle-kall når ingenting er nytt),
+      // men alltid hvis vi ikke har dagsform å vise.
       const cur = readinessRef.current;
-      if (cur && cur.day === todayKey() && !readinessStale(cur)) return; // har alt dagens
+      const fresh = cur && cur.day === todayKey();
+      if (fresh && Date.now() - lastSyncRef.current < 5*60*1000) return;
+      lastSyncRef.current = Date.now();
       syncReadiness(whoopConnRef.current);
     };
     document.addEventListener("visibilitychange", onForeground);
