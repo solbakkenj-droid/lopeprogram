@@ -825,6 +825,39 @@ const HR_ZONES = {
   terskel:          [80,87],
   test:             [90,100],
 };
+// ─── OLYMPIATOPPENS 5-SONERSMODELL (% av makspuls) ───────────────────────────
+// KUN til visning, så tallene kan følges på klokka. Treningsmålene i appen kommer
+// fortsatt fra bokas ankerpunkter over (60 lett / 70 rolig / 80-87 terskel / 100
+// maks) – boka bruker en glidende skala, ikke soner 1-5, og programmet er bygget
+// på boka. NB: bokas terskel (80-87 %) ligger i sone 2-3 hos Olympiatoppen, som
+// kaller sone 4 «anaerob terskel». Det er to ulike modeller, ikke en feil.
+const OT_ZONES = [
+  { n: 1, pct: [55, 72],  label: "Svært lett",  note: "pratefart" },
+  { n: 2, pct: [72, 82],  label: "Rolig",       note: "moderat langkjøring" },
+  { n: 3, pct: [82, 87],  label: "Moderat",     note: "opp mot anaerob terskel" },
+  { n: 4, pct: [87, 92],  label: "Hard",        note: "anaerob terskel og intervaller" },
+  { n: 5, pct: [92, 100], label: "Maksimalt",   note: "svært harde intervaller" },
+];
+const otZone = p => OT_ZONES.find(z => p < z.pct[1]) || OT_ZONES[OT_ZONES.length - 1];
+// Et intensitets-%-intervall kan krysse en sonegrense. Vi merker etter sonen som
+// DOMINERER intervallet, ikke som et spenn: bokas terskel (80-87 %) ligger 5 av 7
+// prosentpoeng i sone 3 og bare 2 i sone 2, så «sone 2–3» ga sone 2 altfor mye vekt.
+// Samme regel brukes i ukesfordelingen, så merkingen er lik overalt.
+function otZoneFor(pct) {
+  if (!pct) return null;
+  let best = OT_ZONES[0], bestOverlap = -Infinity;
+  for (const z of OT_ZONES) {
+    const ov = Math.min(pct[1], z.pct[1]) - Math.max(pct[0], z.pct[0]);
+    if (ov > bestOverlap) { bestOverlap = ov; best = z; }
+  }
+  return best;
+}
+function otZoneLabel(pct) {
+  const z = otZoneFor(pct);
+  return z ? `Sone ${z.n}` : null;
+}
+const otZoneText = intensity => otZoneLabel(HR_ZONES[intensity]) || "";
+
 // Returnerer { pct:[min,max], bpm:[min,max] } eller null (f.eks. for pause/hvile,
 // eller hvis makspuls ikke er fylt inn ennå)
 function hrZone(intensity, maxHR) {
@@ -1318,34 +1351,25 @@ function estKmh(intensity, sp, thresholdKmh) {
   if (rank >= 7) return thresholdKmh || sp.run;       // terskel / test
   return sp.run;                                      // jogg / rolig løp
 }
-// Pulssoner gruppert fra HR_ZONES (bokas ankerpunkter). Intensiteter uten
-// pulsanker (pause, hvile, styrke) telles ikke med.
-const HR_BANDS = [
-  { label: "Gange / oppvarming", max: 65 },
-  { label: "Rolig",              max: 75 },
-  { label: "Moderat",            max: 80 },
-  { label: "Terskel",            max: 88 },
-  { label: "Maks",               max: 101 },
-];
 function weekEstimate(sessions, log, thresholdKmh) {
   const sp = measuredSpeeds(log);
   const secs = {};
   sessions.forEach(s => { const m = intensitySeconds(s); for (const k in m) secs[k] = (secs[k] || 0) + m[k]; });
-  let totalSec = 0, meters = 0, missing = false;
-  const bands = HR_BANDS.map(b => ({ ...b, sec: 0 }));
+  let totalSec = 0, meters = 0, restSec = 0, missing = false;
+  // Fordeling på Olympiatoppens soner: hver intensitet plasseres etter midtpunktet
+  // i bokas puls-range for den intensiteten.
+  const bands = OT_ZONES.map(z => ({ ...z, sec: 0 }));
   for (const k in secs) {
     const sec = secs[k];
     totalSec += sec;
     const kmh = estKmh(k, sp, thresholdKmh);
     if (kmh == null) missing = true; else meters += (sec / 3600) * kmh * 1000;
     const z = HR_ZONES[k];
-    if (z) {
-      const mid = (z[0] + z[1]) / 2;
-      (bands.find(b => mid < b.max) || bands[bands.length - 1]).sec += sec;
-    }
+    if (z) bands[otZoneFor(z).n - 1].sec += sec;
+    else restSec += sec;   // pause/hvile/styrke – ingen pulssone i boka
   }
   return { minutes: Math.round(totalSec / 60), km: missing ? null : Math.round(meters / 100) / 10,
-           bands: bands.filter(b => b.sec > 0), speeds: sp };
+           bands: bands.filter(b => b.sec > 0), restSec, speeds: sp };
 }
 
 // Fart-konvertering (kanonisk = km/t)
@@ -1465,7 +1489,8 @@ function firstCooldownIdx(arr) { for (let i=0;i<arr.length;i++) if (arr[i].segKi
 // Kort tekst med puls-mål, f.eks. " · 158-165 slag/min" – tom streng uten makspuls
 function hrZoneText(intensity, maxHR) {
   const z = hrZone(intensity, maxHR);
-  return z ? ` · ${z.bpm[0]}-${z.bpm[1]} slag/min` : "";
+  const ot = otZoneText(intensity);
+  return z ? ` · ${z.bpm[0]}-${z.bpm[1]} slag/min${ot ? ` (${ot.toLowerCase()})` : ""}` : "";
 }
 // Kort tekst med anbefalt fart for et arbeidsdrag – lagret målfart (genererte
 // program) foran %-kalkulatoren. Tom streng uten terskelfart/målfart.
@@ -1797,7 +1822,7 @@ function GuidedSession({ session, choices, readiness, voiceOn, voiceURI, maxHR, 
             <div class="val">${pace ? (unit==="pace" ? `${pace.pace[0]}–${pace.pace[1]}` : `${pace.kmh[0]}–${pace.kmh[1]}`) : "–"}<small> ${unit==="pace"?"/km":"km/t"}</small></div>
           </div>
           <div class="metric-cell">
-            <div class="lab"><i class="ti ti-heartbeat" style=${{fontSize:12,verticalAlign:"-1px"}}></i> Puls</div>
+            <div class="lab"><i class="ti ti-heartbeat" style=${{fontSize:12,verticalAlign:"-1px"}}></i> Puls${otZoneText(step.intensity) ? ` · ${otZoneText(step.intensity).toLowerCase()}` : ""}</div>
             <div class="val">${zone ? `${zone.bpm[0]}–${zone.bpm[1]}` : "–"}<small> slag/min</small></div>
           </div>
         </div>`}
@@ -2488,17 +2513,23 @@ function WeekView({ week, log, onBack, onOpen, thresholdKmh, maxHR }) {
       </div>
       ${est.bands.length > 0 && html`
         <div class="card" style=${{padding:"16px 18px",marginBottom:18}}>
-          <p class="eyebrow" style=${{margin:"0 0 12px"}}>Tid i pulssoner</p>
+          <p class="eyebrow" style=${{margin:"0 0 2px"}}>Tid i pulssoner</p>
+          <p style=${{margin:"0 0 12px",fontSize:12,color:"var(--color-text-tertiary)"}}>Olympiatoppens soner – samme inndeling som på klokka</p>
           ${est.bands.map(b => html`
-            <div key=${b.label} style=${{marginBottom:10}}>
+            <div key=${b.n} style=${{marginBottom:10}}>
               <div style=${{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:4}}>
-                <span style=${{fontSize:13}}>${b.label}${maxHR && b.max <= 100 ? html`<span style=${{fontSize:12,color:"var(--color-text-tertiary)"}}> · under ${Math.round(b.max/100*maxHR)}</span>` : ""}</span>
+                <span style=${{fontSize:13}}>Sone ${b.n} · ${b.label}<span style=${{fontSize:12,color:"var(--color-text-tertiary)"}}> · ${maxHR ? `${Math.round(b.pct[0]/100*maxHR)}–${Math.round(b.pct[1]/100*maxHR)}` : `${b.pct[0]}–${b.pct[1]} %`}</span></span>
                 <span class="mono" style=${{fontSize:13,color:"var(--color-text-secondary)",flexShrink:0}}>${Math.round(b.sec/60)} min</span>
               </div>
               <div style=${{height:6,borderRadius:3,background:"var(--color-background-secondary)",overflow:"hidden"}}>
                 <div style=${{height:"100%",width:`${Math.round((b.sec/bandMax)*100)}%`,background:"var(--color-accent)",borderRadius:3}}></div>
               </div>
             </div>`)}
+          ${est.restSec > 0 && html`
+            <div style=${{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,paddingTop:2}}>
+              <span style=${{fontSize:13,color:"var(--color-text-secondary)"}}>Pause / hvile</span>
+              <span class="mono" style=${{fontSize:13,color:"var(--color-text-secondary)"}}>${Math.round(est.restSec/60)} min</span>
+            </div>`}
           <p style=${{margin:"10px 0 0",fontSize:12,color:"var(--color-text-tertiary)",lineHeight:1.5}}>
             ${est.km != null
               ? `Distansen er et estimat fra dine egne loggede farter (${est.speeds.n} økt${est.speeds.n===1?"":"er"}), ikke et mål.`
@@ -3244,6 +3275,17 @@ function App() {
                 style=${{width:"100%",boxSizing:"border-box"}}/>
               <span style=${{fontSize:11,color:"var(--color-text-tertiary)"}}>slag/min</span>
             </div>
+            ${pMaxHR > 0 && html`
+              <div style=${{marginBottom:18,paddingTop:14,borderTop:"0.5px solid var(--color-border-tertiary)"}}>
+                <p class="eyebrow" style=${{margin:"0 0 2px"}}>Pulssoner</p>
+                <p style=${{margin:"0 0 10px",fontSize:12,color:"var(--color-text-tertiary)",lineHeight:1.5}}>Olympiatoppens modell, regnet av makspulsen din – til sammenligning med klokka.</p>
+                ${OT_ZONES.map(z=>html`
+                  <div key=${z.n} style=${{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,padding:"5px 0"}}>
+                    <span style=${{fontSize:13}}>Sone ${z.n} · ${z.label}<span style=${{fontSize:11,color:"var(--color-text-tertiary)"}}> · ${z.note}</span></span>
+                    <span class="mono" style=${{fontSize:13,color:"var(--color-text-secondary)",flexShrink:0,whiteSpace:"nowrap"}}>${Math.round(z.pct[0]/100*pMaxHR)}–${Math.round(z.pct[1]/100*pMaxHR)}</span>
+                  </div>`)}
+                <p style=${{margin:"8px 0 0",fontSize:11,color:"var(--color-text-tertiary)",lineHeight:1.5}}>Bokas terskel (80–87 %) ligger i sone 2–3 her. Olympiatoppen kaller sone 4 «anaerob terskel» – to ulike modeller. Appen styrer etter bokas tall.</p>
+              </div>`}
             <button onClick=${async()=>{ await saveProfileFields({ threshold_kmh: pThr, max_hr: pMaxHR }); setShowProfile(false); }} class="btn-primary" style=${{width:"100%",padding:"13px",fontSize:15,marginBottom:8}}>Lagre</button>
             <button onClick=${()=>setShowProfile(false)} style=${{width:"100%",padding:"12px",fontSize:14,color:"var(--color-text-secondary)"}}>Avbryt</button>
           </div>
