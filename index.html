@@ -2965,11 +2965,11 @@ function App() {
             recovery_score: rec.score, hrv: rec.hrv ?? null, resting_hr: rec.resting_hr ?? null,
             sleep_pct: rec.sleep_pct ?? null, cycle_id: rec.cycle_id ?? null };
       try { await saveReadiness(r); } catch {}
-    } else if (r && r.source === "whoop") {
-      // Lagret rad hører til en gammel cycle, og ny score finnes ikke ennå → vis
-      // heller ingenting enn gårsdagens tall. Raden overskrives ved neste henting.
-      r = null;
     }
+    // Ellers: behold raden vi alt har. Guarden skal hindre at GAMMEL data skrives,
+    // ikke skjule data som alt er riktig. Whoop kan melde en nyere cycle som ennå
+    // ikke er scoret (f.eks. etter en blund) – da er dagens lagrede score fortsatt
+    // det beste vi har, og den overskrives så snart en ny score foreligger.
     setReadiness(r);
   }
 
