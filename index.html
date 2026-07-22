@@ -1140,9 +1140,12 @@ function buildRunSession(id, day, plannedDate, kind, ctx, timeOfDay) {
     // Kap. 8, mellommodell (rpw 7), onsdag: «45-50 min rolig»
     seg.push({ kind: "continuous", intensity: "rolig_lop", durationRangeSec: [rmin(45)*60, rmin(50)*60] });
   } else if (kind === "stotte_amb") {
-    // Kap. 8, mellommodell (rpw 7), tirsdag (enkel uke): «6 x 6 min terskel, 1 min pause»
+    // Kap. 8, mellommodell (rpw 7), tirsdag (enkel uke): «6 x 6 min terskel, 1 min pause».
+    // Fast antall (repeats, ikke repeatsRange) – boka gir et eksakt tall her, ikke en range,
+    // så økten skal IKKE tilbys grønt lys-forlengelse i konfig-skjermen (kap. 8s presisjons-
+    // og disiplin-poeng: unngå å legge på mer på en allerede kalibrert terskeldag).
     seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
-    seg.push({ kind: "intervals", repeatsRange: [6,6], work: { intensity: "terskel", durationSec: 360, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 60 } });
+    seg.push({ kind: "intervals", repeats: 6, work: { intensity: "terskel", durationSec: 360, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 60 } });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
   } else if (kind === "stotte_amb_am") {
     // Kap. 8, dobbel terskel annenhver uke (rpw 7), tirsdag morgen: «6-8 x 5 min terskel, 1 min pause»
@@ -1156,15 +1159,17 @@ function buildRunSession(id, day, plannedDate, kind, ctx, timeOfDay) {
     seg.push({ kind: "intervals", repeatsRange: [15,20], work: { intensity: "rask_jogg", durationSec: 45, paceGuide: true }, rest: { intensity: "pause", durationSec: 15 }, note: "kveldsøkt – kortere og enklere enn morgenøkta" });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 180 });
   } else if (kind === "hoved_amb") {
-    // Kap. 8, mellommodell (rpw 7), torsdag (enkel uke): «4 x 10 min terskel, 1:30 min pause»
+    // Kap. 8, mellommodell (rpw 7), torsdag (enkel uke): «4 x 10 min terskel, 1:30 min pause».
+    // Fast antall – se begrunnelse ved "stotte_amb".
     seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
-    seg.push({ kind: "intervals", repeatsRange: [4,4], work: { intensity: "terskel", durationSec: 600, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 90 } });
+    seg.push({ kind: "intervals", repeats: 4, work: { intensity: "terskel", durationSec: 600, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 90 } });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
   } else if (kind === "hoved_amb_kort") {
     // Kap. 8, dobbel terskel annenhver uke (rpw 7), torsdag: kortet ned «f.eks. 3 x 8 min» for
-    // å holde total terskelandel i sjakk den uka tirsdag er dobbel
+    // å holde total terskelandel i sjakk den uka tirsdag er dobbel. Fast antall (ikke range) –
+    // dette tallet ER selve volumkontrollen den uka, skal ikke kunne forlenges bort på grønt lys.
     seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
-    seg.push({ kind: "intervals", repeatsRange: [3,3], work: { intensity: "terskel", durationSec: 480, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 90 } });
+    seg.push({ kind: "intervals", repeats: 3, work: { intensity: "terskel", durationSec: 480, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 90 } });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
   } else if (kind === "rolig_amb8") {
     // Kap. 8, full dobbel terskel (rpw 8), mandag: «40-60 min rolig»
@@ -1185,15 +1190,16 @@ function buildRunSession(id, day, plannedDate, kind, ctx, timeOfDay) {
     seg.push({ kind: "intervals", repeatsRange: [20,25], work: { intensity: "terskel", durationSec: 60, paceGuide: true }, rest: { intensity: "pause", durationSec: 30 }, note: "kveldsøkt – kortere og enklere enn morgenøkta" });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 180 });
   } else if (kind === "stotte_amb2_am") {
-    // Kap. 8, full dobbel (rpw 8), torsdag morgen (dobbel terskel dag 2): «3 x 10 min terskel, 90 sek pause»
+    // Kap. 8, full dobbel (rpw 8), torsdag morgen (dobbel terskel dag 2): «3 x 10 min terskel,
+    // 90 sek pause». Fast antall – se begrunnelse ved "stotte_amb".
     seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
-    seg.push({ kind: "intervals", repeatsRange: [3,3], work: { intensity: "terskel", durationSec: 600, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 90 } });
+    seg.push({ kind: "intervals", repeats: 3, work: { intensity: "terskel", durationSec: 600, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 90 } });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
   } else if (kind === "stotte_amb2_pm") {
     // Kap. 8, full dobbel (rpw 8), torsdag kveld (dag 2): «15 x 90 sek lett progressiv, 30 sek
-    // pause» – kortere/enklere enn morgenøkta
+    // pause» – kortere/enklere enn morgenøkta. Fast antall – se begrunnelse ved "stotte_amb".
     seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 300 });
-    seg.push({ kind: "intervals", repeatsRange: [15,15], work: { intensity: "terskel", durationSec: 90, paceGuide: true }, rest: { intensity: "pause", durationSec: 30 }, note: "lett progressiv – kveldsøkt, kortere og enklere enn morgenøkta" });
+    seg.push({ kind: "intervals", repeats: 15, work: { intensity: "terskel", durationSec: 90, paceGuide: true }, rest: { intensity: "pause", durationSec: 30 }, note: "lett progressiv – kveldsøkt, kortere og enklere enn morgenøkta" });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 180 });
   }
   return { id, plannedDay: day, plannedDate, optional, segments: seg, ...(timeOfDay ? { timeOfDay } : {}) };
