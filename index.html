@@ -2581,6 +2581,44 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
   const next = sessions.find(s => !s.optional && !(log[s.id] && log[s.id].done));
   const totalDone = sessions.filter(s => log[s.id] && log[s.id].done).length;
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState({});
+
+  // Slå sammen sammenhengende fullførte uker (2+) til én rad, så uken du skal inn
+  // på ikke drukner nederst i en lang liste av ferdige uker. Klikk for å åpne dem.
+  const weekRows = [];
+  for (let i = 0; i < weeks.length; ) {
+    const isComplete = w => w.sessions.length > 0 && w.sessions.filter(s => log[s.id] && log[s.id].done).length === w.sessions.length;
+    if (isComplete(weeks[i])) {
+      let j = i;
+      while (j < weeks.length && isComplete(weeks[j])) j++;
+      if (j - i >= 2) {
+        weekRows.push({ type: "group", start: weeks[i].week, end: weeks[j - 1].week, weeks: weeks.slice(i, j) });
+        i = j;
+        continue;
+      }
+    }
+    weekRows.push({ type: "week", w: weeks[i] });
+    i++;
+  }
+  const renderWeekButton = w => {
+    const dc = w.sessions.filter(s => log[s.id] && log[s.id].done).length;
+    const complete = dc === w.sessions.length;
+    return html`
+      <button key=${w.week} onClick=${()=>onOpenWeek(w.week)} style=${{
+        textAlign:"left",background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",
+        borderRadius:"var(--border-radius-lg)",padding:"15px 18px",display:"flex",alignItems:"center",gap:14,cursor:"pointer"}}>
+        <div style=${{width:38,height:38,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+          background:complete?"var(--color-background-success)":"var(--color-background-secondary)",
+          color:complete?"var(--color-text-success)":"var(--color-text-secondary)",fontSize:15,fontWeight:600}}>
+          ${complete ? html`<i class="ti ti-check" style=${{fontSize:18}}></i>` : w.week}
+        </div>
+        <div style=${{flex:1,minWidth:0}}>
+          <p class="eyebrow" style=${{margin:0}}>${w.phase}</p>
+          <p style=${{margin:"2px 0 0",fontSize:15,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${w.title}</p>
+        </div>
+        <span class="mono" style=${{fontSize:13,color:"var(--color-text-tertiary)",flexShrink:0}}>${dc}/${w.sessions.length}</span>
+      </button>`;
+  };
   const progLabel = p => (p.program_json && p.program_json.name && p.program_json.name.trim())
     ? p.program_json.name.trim()
     : `${(GOAL_META[p.goal] || { label: p.goal }).label} · ${((p.program_json && p.program_json.weeksCount) || (p.program_json && p.program_json.weeks || []).length)} uker`;
@@ -2613,23 +2651,34 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
       <p class="eyebrow" style=${{margin:"0 0 12px"}}>${totalDone} økter fullført totalt</p>
 
       <div style=${{display:"flex",flexDirection:"column",gap:10}}>
-        ${weeks.map(w => {
-          const dc = w.sessions.filter(s => log[s.id] && log[s.id].done).length;
-          const complete = dc === w.sessions.length;
+        ${weekRows.map(row => {
+          if (row.type === "week") return renderWeekButton(row.w);
+          const key = `${progTab}_${row.start}-${row.end}`;
+          const expanded = !!expandedGroups[key];
+          if (expanded) {
+            return html`
+              <div key=${key} style=${{display:"flex",flexDirection:"column",gap:10}}>
+                <button onClick=${()=>setExpandedGroups(g=>({...g,[key]:false}))} style=${{
+                  textAlign:"left",background:"transparent",border:"none",padding:"2px 4px",display:"flex",
+                  alignItems:"center",gap:6,cursor:"pointer",color:"var(--color-text-tertiary)",fontSize:12,fontWeight:600}}>
+                  <i class="ti ti-chevron-up"></i> Uke ${row.start}-${row.end} · skjul
+                </button>
+                ${row.weeks.map(renderWeekButton)}
+              </div>`;
+          }
           return html`
-            <button key=${w.week} onClick=${()=>onOpenWeek(w.week)} style=${{
+            <button key=${key} onClick=${()=>setExpandedGroups(g=>({...g,[key]:true}))} style=${{
               textAlign:"left",background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",
               borderRadius:"var(--border-radius-lg)",padding:"15px 18px",display:"flex",alignItems:"center",gap:14,cursor:"pointer"}}>
               <div style=${{width:38,height:38,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
-                background:complete?"var(--color-background-success)":"var(--color-background-secondary)",
-                color:complete?"var(--color-text-success)":"var(--color-text-secondary)",fontSize:15,fontWeight:600}}>
-                ${complete ? html`<i class="ti ti-check" style=${{fontSize:18}}></i>` : w.week}
+                background:"var(--color-background-success)",color:"var(--color-text-success)",fontSize:15,fontWeight:600}}>
+                <i class="ti ti-check" style=${{fontSize:18}}></i>
               </div>
               <div style=${{flex:1,minWidth:0}}>
-                <p class="eyebrow" style=${{margin:0}}>${w.phase}</p>
-                <p style=${{margin:"2px 0 0",fontSize:15,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${w.title}</p>
+                <p class="eyebrow" style=${{margin:0}}>${row.weeks.length} uker fullført</p>
+                <p style=${{margin:"2px 0 0",fontSize:15,fontWeight:500}}>Uke ${row.start}-${row.end}</p>
               </div>
-              <span class="mono" style=${{fontSize:13,color:"var(--color-text-tertiary)",flexShrink:0}}>${dc}/${w.sessions.length}</span>
+              <i class="ti ti-chevron-down" style=${{fontSize:16,color:"var(--color-text-tertiary)",flexShrink:0}}></i>
             </button>`;
         })}
       </div>
