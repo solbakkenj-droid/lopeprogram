@@ -1014,18 +1014,67 @@ function nextMonday() {
 function weekMondayKey(dateStr) { const d = parseKey(dateStr); return dateKey(addDays(d, -((d.getDay()+6)%7))); }
 
 // Ukestruktur etter økter/uke (del 3.3): tre nøkkeløkter er grunnmuren, resten rolig påfyll
-function weekLayout(rpw, useX) {
+// rpw 7-8 (kap. 8, «Den ambisiøse»): egne layouts med dobbel terskel (to økter samme dag,
+// morgen+kveld). doubleThreshold styrer om/når det dobles: "ingen" | "annenhver" | "full".
+// weekIndex (0-basert) brukes kun av "annenhver" – dobler på partallsuker (uke 2, 4, 6 …,
+// altså weekIndex 1, 3, 5 …). Layout-tuplene kan ha et 3. element: timeOfDay ("morgen"/"kveld").
+function weekLayout(rpw, useX, doubleThreshold, weekIndex) {
   if (rpw <= 3) return [["Tirsdag","rolig"],["Torsdag","hoved"],["Søndag","lang"]];
   if (rpw === 4) return [["Tirsdag","stotte"],["Onsdag","rolig"],["Torsdag","hoved"],["Søndag","lang"]];
   if (rpw === 5) return useX
     ? [["Tirsdag","stotte"],["Onsdag","rolig"],["Torsdag","hoved"],["Lørdag","x"],["Søndag","lang"]]
     : [["Tirsdag","stotte"],["Onsdag","rolig"],["Torsdag","hoved"],["Lørdag","rolig"],["Søndag","lang"]];
-  return [["Mandag","rolig"],["Tirsdag","stotte"],["Onsdag","rolig"],["Torsdag","hoved"],["Lørdag","x"],["Søndag","lang"]];
+  if (rpw === 6) return [["Mandag","rolig"],["Tirsdag","stotte"],["Onsdag","rolig"],["Torsdag","hoved"],["Lørdag","x"],["Søndag","lang"]];
+  if (rpw === 7) {
+    // Kap. 8, «Mellommodell». Med "annenhver" dobles tirsdag (+ kortes torsdag ned) på
+    // partallsuker; med "full" dobles hver uke (samme mønster som rpw 8, men uten torsdag-dobling).
+    const isDoubleWeek = doubleThreshold === "full" ? true : doubleThreshold === "annenhver" && ((weekIndex ?? 0) + 1) % 2 === 0;
+    if (isDoubleWeek) {
+      return [
+        ["Mandag","rolig_lett"],
+        ["Tirsdag","stotte_amb_am","morgen"],
+        ["Tirsdag","stotte_amb_pm","kveld"],
+        ["Onsdag","rolig_amb7"],
+        ["Torsdag","hoved_amb_kort"],
+        ["Lørdag","x"],
+        ["Søndag","lang"],
+      ];
+    }
+    return [
+      ["Mandag","rolig_lett"],
+      ["Tirsdag","stotte_amb"],
+      ["Onsdag","rolig_amb7"],
+      ["Torsdag","hoved_amb"],
+      ["Lørdag","x"],
+      ["Søndag","lang"],
+    ];
+  }
+  // rpw >= 8: kap. 8, «Full dobbel terskel» – dobling hver uke, to dager (tirsdag + torsdag).
+  // Fredag er «restitusjon/hvile, avh. av lørdagens økt» i boka – utelatt som egen økt her
+  // for å lande på nøyaktig 8 økter/uke (se CLAUDE.md-endringslogg for resonnementet).
+  return [
+    ["Mandag","rolig_amb8"],
+    ["Tirsdag","hoved_amb2_am","morgen"],
+    ["Tirsdag","hoved_amb2_pm","kveld"],
+    ["Onsdag","rolig_lett_svaert"],
+    ["Torsdag","stotte_amb2_am","morgen"],
+    ["Torsdag","stotte_amb2_pm","kveld"],
+    ["Lørdag","x"],
+    ["Søndag","lang"],
+  ];
 }
-// Volumfaktor (del 3.6): ~10 %/uke oppbygging (maks 6 uker), blokk-lettuke −35 %, taper mot løpsdag
-function volFactor(i, n, taper, light) {
-  let f = Math.min(1 + 0.10 * Math.min(i, 6), 1.5);
-  if (light) f *= 0.65;
+// Volumfaktor (del 3.6): ~10 %/uke oppbygging (maks 6 uker), blokk-lettuke −35 %, taper mot løpsdag.
+// «manedssyklus» (kap. 8): 4-ukers syklus i stedet for lineær opptrapping – uke 1-2 volum
+// (120 %), uke 3 kvalitet (90 %), uke 4 regenerering (70 %). Taper gjelder uansett modell.
+function volFactor(i, n, taper, light, periodization) {
+  let f;
+  if (periodization === "manedssyklus") {
+    const pos = i % 4;
+    f = (pos === 0 || pos === 1) ? 1.2 : pos === 2 ? 0.9 : 0.7;
+  } else {
+    f = Math.min(1 + 0.10 * Math.min(i, 6), 1.5);
+    if (light) f *= 0.65;
+  }
   if (taper) {
     const fac = { 2:[0.75,0.6], 3:[0.8,0.7,0.55], 4:[0.85,0.75,0.65,0.55] }[taper];
     const idx = i - (n - taper);
@@ -1036,7 +1085,9 @@ function volFactor(i, n, taper, light) {
 // Styrke-plassering (del 6.4): ved en allerede hard dag, aldri hviledag. C = etter X (default)
 function strengthPlacementDays(layout, placement, perWeek) {
   if (!perWeek) return [];
-  const dayOf = kind => { const e = layout.find(x => x[1] === kind); return e ? e[0] : null; };
+  // Prefiks-match ("hoved_amb2_am".startsWith("hoved_")) så rpw 7-8 sine nye kinds (som ikke
+  // heter nøyaktig "hoved"/"stotte") fortsatt gjenkjennes som hoved-/støttedag for plassering.
+  const dayOf = kind => { const e = layout.find(x => x[1] === kind || x[1].startsWith(kind + "_")); return e ? e[0] : null; };
   const hoved = dayOf("hoved"), stotte = dayOf("stotte"), x = dayOf("x");
   let first;
   if (placement === "A") first = hoved;
@@ -1050,10 +1101,11 @@ function strengthPlacementDays(layout, placement, perWeek) {
   }
   return days.filter(Boolean);
 }
-function buildRunSession(id, day, plannedDate, kind, ctx) {
+function buildRunSession(id, day, plannedDate, kind, ctx, timeOfDay) {
   const { thr, f, i, n, meta, periodization, taper } = ctx;
   const rmin = (m, fac) => Math.max(20, Math.round(m*(fac ?? f)/5)*5); // minutter → skalert, rundet til 5
   const seg = [];
+  let optional = false;
   if (kind === "rolig") {
     seg.push({ kind: "continuous", intensity: "rolig_lop", durationRangeSec: [rmin(40)*60, rmin(55)*60], note: "så rolig at det nesten føles feil" });
   } else if (kind === "lang") {
@@ -1080,8 +1132,71 @@ function buildRunSession(id, day, plannedDate, kind, ctx) {
     seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
     seg.push({ kind: "intervals", repeatsRange: reps, work: { intensity: "rask_jogg", durationSec: 45, paceGuide: true }, rest: { intensity: "pause", durationSec: 15 }, note: "start i 10 km-fart, øk gradvis mot 5 km-fart" });
     seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
+  } else if (kind === "rolig_lett") {
+    // Kap. 8, mellommodell (rpw 7), mandag: «Fri eller 30 min veldig lett» – valgfri
+    optional = true;
+    seg.push({ kind: "continuous", intensity: "svart_lett_jogg", durationRangeSec: [rmin(20)*60, rmin(30)*60], note: "veldig lett – helt greit å heller ta fri" });
+  } else if (kind === "rolig_amb7") {
+    // Kap. 8, mellommodell (rpw 7), onsdag: «45-50 min rolig»
+    seg.push({ kind: "continuous", intensity: "rolig_lop", durationRangeSec: [rmin(45)*60, rmin(50)*60] });
+  } else if (kind === "stotte_amb") {
+    // Kap. 8, mellommodell (rpw 7), tirsdag (enkel uke): «6 x 6 min terskel, 1 min pause»
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
+    seg.push({ kind: "intervals", repeatsRange: [6,6], work: { intensity: "terskel", durationSec: 360, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 60 } });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
+  } else if (kind === "stotte_amb_am") {
+    // Kap. 8, dobbel terskel annenhver uke (rpw 7), tirsdag morgen: «6-8 x 5 min terskel, 1 min pause»
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
+    seg.push({ kind: "intervals", repeatsRange: [6,8], work: { intensity: "terskel", durationSec: 300, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 60 } });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
+  } else if (kind === "stotte_amb_pm") {
+    // Kap. 8, dobbel terskel annenhver uke (rpw 7), tirsdag kveld: «15-20 x 45/15» – kap. 5:
+    // kveldsøkta skal alltid være tydelig kortere/enklere enn morgenøkta
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 300 });
+    seg.push({ kind: "intervals", repeatsRange: [15,20], work: { intensity: "rask_jogg", durationSec: 45, paceGuide: true }, rest: { intensity: "pause", durationSec: 15 }, note: "kveldsøkt – kortere og enklere enn morgenøkta" });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 180 });
+  } else if (kind === "hoved_amb") {
+    // Kap. 8, mellommodell (rpw 7), torsdag (enkel uke): «4 x 10 min terskel, 1:30 min pause»
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
+    seg.push({ kind: "intervals", repeatsRange: [4,4], work: { intensity: "terskel", durationSec: 600, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 90 } });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
+  } else if (kind === "hoved_amb_kort") {
+    // Kap. 8, dobbel terskel annenhver uke (rpw 7), torsdag: kortet ned «f.eks. 3 x 8 min» for
+    // å holde total terskelandel i sjakk den uka tirsdag er dobbel
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
+    seg.push({ kind: "intervals", repeatsRange: [3,3], work: { intensity: "terskel", durationSec: 480, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 90 } });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
+  } else if (kind === "rolig_amb8") {
+    // Kap. 8, full dobbel terskel (rpw 8), mandag: «40-60 min rolig»
+    seg.push({ kind: "continuous", intensity: "rolig_lop", durationRangeSec: [rmin(40)*60, rmin(60)*60] });
+  } else if (kind === "rolig_lett_svaert") {
+    // Kap. 8, full dobbel terskel (rpw 8), onsdag: «40-60 min svært rolig eller hvile» – valgfri
+    optional = true;
+    seg.push({ kind: "continuous", intensity: "svart_lett_jogg", durationRangeSec: [rmin(40)*60, rmin(60)*60], note: "svært rolig – helt greit å heller ta hvile" });
+  } else if (kind === "hoved_amb2_am") {
+    // Kap. 8, full dobbel (rpw 8), tirsdag morgen (dobbel terskel dag 1): «5-6 x 6 min terskel, 1 min pause»
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
+    seg.push({ kind: "intervals", repeatsRange: [5,6], work: { intensity: "terskel", durationSec: 360, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 60 } });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
+  } else if (kind === "hoved_amb2_pm") {
+    // Kap. 8, full dobbel (rpw 8), tirsdag kveld (dag 1): «20-25 x 1 min terskel, 30 sek pause» –
+    // kortere/enklere enn morgenøkta
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 300 });
+    seg.push({ kind: "intervals", repeatsRange: [20,25], work: { intensity: "terskel", durationSec: 60, paceGuide: true }, rest: { intensity: "pause", durationSec: 30 }, note: "kveldsøkt – kortere og enklere enn morgenøkta" });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 180 });
+  } else if (kind === "stotte_amb2_am") {
+    // Kap. 8, full dobbel (rpw 8), torsdag morgen (dobbel terskel dag 2): «3 x 10 min terskel, 90 sek pause»
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 600 });
+    seg.push({ kind: "intervals", repeatsRange: [3,3], work: { intensity: "terskel", durationSec: 600, paceGuide: true }, rest: { intensity: "lett_jogg", durationSec: 90 } });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 300 });
+  } else if (kind === "stotte_amb2_pm") {
+    // Kap. 8, full dobbel (rpw 8), torsdag kveld (dag 2): «15 x 90 sek lett progressiv, 30 sek
+    // pause» – kortere/enklere enn morgenøkta
+    seg.push({ kind: "warmup", intensity: "lett_jogg", durationSec: 300 });
+    seg.push({ kind: "intervals", repeatsRange: [15,15], work: { intensity: "terskel", durationSec: 90, paceGuide: true }, rest: { intensity: "pause", durationSec: 30 }, note: "lett progressiv – kveldsøkt, kortere og enklere enn morgenøkta" });
+    seg.push({ kind: "cooldown", intensity: "lett_jogg", durationSec: 180 });
   }
-  return { id, plannedDay: day, plannedDate, optional: false, segments: seg };
+  return { id, plannedDay: day, plannedDate, optional, segments: seg, ...(timeOfDay ? { timeOfDay } : {}) };
 }
 // Ukens intensitetsfordeling (for info-linjen og 80/20-innsyn). Snitt av ranges.
 function weekDistribution(sessions) {
@@ -1103,12 +1218,22 @@ function weekDistribution(sessions) {
 }
 function weekPhase(i, n, taper, light, periodization) {
   if (taper && i >= n - taper) return "Nedtrapping";
+  if (periodization === "manedssyklus") {
+    const pos = i % 4;
+    return (pos === 0 || pos === 1) ? "Volum" : pos === 2 ? "Kvalitet" : "Regenerering";
+  }
   if (light) return "Lett uke";
   if (i < Math.ceil(n*0.4)) return "Oppbygging";
   return periodization === "progressiv_x" ? "Spissing" : "Utvikling";
 }
-function weekTitle(i, n, taper, light) {
+function weekTitle(i, n, taper, light, periodization) {
   if (taper && i >= n - taper) return i === n-1 ? "Løpsuke – lett og kvikk" : "Nedtrapping – mindre volum, behold litt intensitet";
+  if (periodization === "manedssyklus") {
+    const pos = i % 4;
+    return (pos === 0 || pos === 1) ? "Volumuke – 120 % lengde, nøkkeløktene står stabilt"
+      : pos === 2 ? "Kvalitetsuke – 90 % volum, mer vekt på kvalitetsøktene"
+      : "Regenerering – 70 % volum, hent deg inn før neste syklus";
+  }
   if (light) return "Lett uke – hent deg inn (−35 % volum)";
   if (i === 0) return "Første uke – etabler rytmen";
   return "Bygg videre – rolig volum opp, nøkkeløktene står";
@@ -1123,21 +1248,25 @@ function generateProgram(o, pid) {
     ? Math.max(4, Math.round((goalDate.getTime() - start.getTime()) / (7*86400000)))
     : Math.max(4, Math.min(24, o.weeksCount || 8));
   const useX = o.runsPerWeek >= 6 || (o.runsPerWeek === 5 && o.periodization === "progressiv_x");
-  const layout = weekLayout(o.runsPerWeek, useX);
+  const doubleThreshold = o.doubleThreshold || "ingen";
   const taper = meta.race && goalDate ? Math.min(meta.taper, Math.max(0, n-2)) : 0;
   const weeks = [];
   for (let i=0; i<n; i++) {
+    // Layouten regnes ut PER uke (ikke én gang for hele programmet): rpw 7 med "annenhver"
+    // dobler kun på partallsuker, så layouten kan variere fra uke til uke. For rpw 3-6 og 8
+    // returnerer weekLayout uansett samme, statiske array hver gang (uendret oppførsel).
+    const layout = weekLayout(o.runsPerWeek, useX, doubleThreshold, i);
     const light = o.periodization === "blokk" && (i%3) === 2 && i < n - taper;
-    const f = volFactor(i, n, taper, light);
+    const f = volFactor(i, n, taper, light, o.periodization);
     const ctx = { thr, f, i, n, meta, periodization: o.periodization, taper };
     const sessions = [];
     let k = 0;
-    layout.forEach(([day, kind]) => {
+    layout.forEach(([day, kind, timeOfDay]) => {
       k++;
       const plannedDate = dateKey(addDays(start, i*7 + DAY_OFFSET[day]));
       if (goalDate && parseKey(plannedDate) >= goalDate) return; // løpsdagen tar over
       if (light && kind === "x") return; // lett uke: X-økta droppes først (sikkerhetsventilen)
-      sessions.push(buildRunSession(`g${pid}-u${i+1}-${k}`, day, plannedDate, kind, ctx));
+      sessions.push(buildRunSession(`g${pid}-u${i+1}-${k}`, day, plannedDate, kind, ctx, timeOfDay));
     });
     strengthPlacementDays(layout, o.strengthPlacement || "C", o.strengthPerWeek).forEach((day, si) => {
       const plannedDate = dateKey(addDays(start, i*7 + DAY_OFFSET[day]));
@@ -1149,7 +1278,7 @@ function generateProgram(o, pid) {
     weeks.push({
       week: i+1,
       phase: weekPhase(i, n, taper, light, o.periodization),
-      title: weekTitle(i, n, taper, light),
+      title: weekTitle(i, n, taper, light, o.periodization),
       info: (d => d.total ? `Ca. ${Math.round(d.total/3600*10)/10} t løping · ${d.easyPct} % rolig · ${d.thrPct} % terskel · ${d.hardPct} % høy intensitet` : "")(weekDistribution(sessions)),
       sessions,
     });
@@ -1165,7 +1294,7 @@ function generateProgram(o, pid) {
     });
     wk.sessions.sort((a,b) => DAY_OFFSET[a.plannedDay] - DAY_OFFSET[b.plannedDay]);
   }
-  return { weeks, startDate: dateKey(start), weeksCount: n };
+  return { weeks, startDate: dateKey(start), weeksCount: n, doubleThreshold };
 }
 function programSessions(prog) {
   const out = [];
@@ -1248,7 +1377,8 @@ function stravaPasteText(session, rec, thresholdKmh) {
     if (seg.kind === "test") return seg.note || "test";
     return null;
   }).filter(Boolean);
-  return parts.join(", ") + (usedGoal ? " (mål)" : "");
+  const prefix = session.timeOfDay ? `(${session.timeOfDay}) ` : ""; // dobbel terskel: skill morgen/kveld i limeteksten
+  return prefix + parts.join(", ") + (usedGoal ? " (mål)" : "");
 }
 
 // ─── HJELPERE ─────────────────────────────────────────────────────────────────
@@ -1263,8 +1393,13 @@ function parseKey(key) {
 const pad = n => String(n).padStart(2, "0");
 const WEEKDAYS = ["Søndag","Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag"];
 const weekdayName = (dateStr) => { if (!dateStr) return null; const d = parseKey(dateStr); return WEEKDAYS[d.getDay()]; };
-// Fullført økt viser faktisk ukedag (fra dato); ellers planlagt dag
-const displayDay = (session, rec) => (rec && rec.done && rec.done_date) ? (weekdayName(rec.done_date) || session.plannedDay) : session.plannedDay;
+// Fullført økt viser faktisk ukedag (fra dato); ellers planlagt dag. Dobbel terskel (kap. 8,
+// rpw 7-8): to økter samme dag skiller seg kun ved timeOfDay ("morgen"/"kveld") – uten denne
+// etiketten ville de sett identiske ut i uke-/øktlister.
+const displayDay = (session, rec) => {
+  const day = (rec && rec.done && rec.done_date) ? (weekdayName(rec.done_date) || session.plannedDay) : session.plannedDay;
+  return session.timeOfDay ? `${day} (${session.timeOfDay})` : day;
+};
 
 // Varighet → tekst (matcher bokas stil: "90 sek", "2 min", "7:30 min")
 function durText(sec) {
@@ -2165,19 +2300,28 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
   const [placement, setPlacement] = useState("C");
   const [thr, setThr] = useState(thresholdKmh ?? null);
   const [period, setPeriod] = useState(null);
+  const [dblT, setDblT] = useState(null);          // dobbel terskel (kap. 8): null = følg anbefalingen
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const meta = goal ? GOAL_META[goal] : null;
   const recS = recommendStrength(birthYear, injury);
   const sVal = strength ?? recS;
-  const recP = injury === "mange" ? "flat" : (meta && meta.race ? "progressiv_x" : "flat");
+  // Månedssyklus (kap. 8) er kun anbefalt/tilgjengelig fra 7 økter/uke (ambisiøs-nivået) –
+  // under det gjelder samme anbefaling som før.
+  const recP = runs >= 7 ? "manedssyklus" : (injury === "mange" ? "flat" : (meta && meta.race ? "progressiv_x" : "flat"));
   const pVal = period ?? recP;
+  // Dobbel terskel-valg (kap. 8): kun relevant fra 7 økter/uke. 7 → «annenhver uke» som default,
+  // 8 → «full dobbel» som default. Ugyldig valg (f.eks. "full" beholdt etter å ha gått fra 8 til 7
+  // økter/uke) faller tilbake til anbefalingen i stedet for å lagre en kombinasjon som ikke finnes.
+  const recDbl = runs === 7 ? "annenhver" : runs === 8 ? "full" : "ingen";
+  const dblOptions = runs === 7 ? ["ingen","annenhver"] : runs === 8 ? ["ingen","full"] : ["ingen"];
+  const dblVal = dblOptions.includes(dblT) ? dblT : recDbl;
   const weeksTo = meta && meta.race && goalDate ? Math.round((parseKey(goalDate).getTime() - nextMonday().getTime())/(7*86400000)) : null;
   const canNext = step===0 ? !!goal
     : step===1 ? (meta.race ? (goalDate && weeksTo >= 4) : weeksCount >= 4)
     : true;
-  const opts = () => ({ goal, goalDate: meta.race ? goalDate : null, weeksCount, runsPerWeek: runs, strengthPerWeek: sVal, periodization: pVal, thresholdKmh: thr, strengthPlacement: placement });
+  const opts = () => ({ goal, goalDate: meta.race ? goalDate : null, weeksCount, runsPerWeek: runs, strengthPerWeek: sVal, periodization: pVal, thresholdKmh: thr, strengthPlacement: placement, doubleThreshold: runs >= 7 ? dblVal : "ingen" });
   const create = async () => {
     setBusy(true); setErr("");
     const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -2216,11 +2360,30 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
         ${stepper(weeksCount, setWeeksCount, 4, 24)}
       </div>`;
   else if (step === 2) bodyEl = html`<div>
-    ${stepper(runs, setRuns, 3, 6)}
-    <p style=${{margin:0,fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>
-      ${runs===3 ? "Hovedøkt + rolig + langtur (støtte/X droppes)." : runs===4 ? "Hovedøkt + støtteøkt + rolig + langtur." : runs===5 ? "Hovedøkt + støtteøkt + 2 rolige + langtur." : "Hovedøkt + støtteøkt + X-økt + 2 rolige + langtur."}
+    ${stepper(runs, setRuns, 3, 8)}
+    <p style=${{margin:"0 0 12px",fontSize:13,color:"var(--color-text-secondary)",lineHeight:1.5}}>
+      ${runs===3 ? "Hovedøkt + rolig + langtur (støtte/X droppes)."
+        : runs===4 ? "Hovedøkt + støtteøkt + rolig + langtur."
+        : runs===5 ? "Hovedøkt + støtteøkt + 2 rolige + langtur."
+        : runs===6 ? "Hovedøkt + støtteøkt + X-økt + 2 rolige + langtur."
+        : runs===7 ? "Kap. 8 – «Mellommodell»: hovedøkt + støtteøkt + X-økt + rolige + langtur, med valgfri dobbel terskel (se under)."
+        : "Kap. 8 – «Full dobbel terskel»: to terskeløkter samme dag (tirsdag og torsdag, morgen + kveld) + X-økt + rolige + langtur."}
       Tre nøkkeløkter er grunnmuren – resten er rolig påfyll (justert 80/20: 60-65 % rolig, 20-30 % terskel, 5-10 % høy intensitet).
     </p>
+    ${runs >= 7 && html`<div>
+      <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Dobbel terskel (to økter samme dag – kap. 8)</label>
+      <div style=${{display:"flex",gap:6,marginBottom:8}}>
+        ${(runs===7 ? [["ingen","Ingen"],["annenhver","Annenhver uke"]] : [["ingen","Ingen"],["full","Full dobbel"]]).map(([v,l])=>html`
+          <button key=${v} onClick=${()=>setDblT(v)} style=${{flex:1,padding:"9px 0",fontSize:13,
+            background:dblVal===v?"var(--color-accent)":"var(--color-background-secondary)",color:dblVal===v?"#fff":"var(--color-text-primary)",
+            border:dblVal===v?"none":"0.5px solid var(--color-border-tertiary)"}}>${l}</button>`)}
+      </div>
+      <p style=${{margin:0,fontSize:12,color:"var(--color-text-tertiary)",lineHeight:1.5}}>
+        ${runs===7
+          ? "Annenhver uke: tirsdag dobles (morgen + kveld) og torsdag kortes ned, annenhver uke – de øvrige ukene er vanlig enkelt terskel."
+          : "Full dobbel: tirsdag og torsdag dobles hver uke (morgen + kveld). Krever fleksibel hverdag – vurder «7 økter/annenhver uke» først, jf. boka."}
+      </p>
+    </div>`}
   </div>`;
   else if (step === 3) bodyEl = html`<div>
     <div style=${{display:"flex",gap:10,marginBottom:12}}>
@@ -2262,7 +2425,9 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
   else if (step === 5) bodyEl = html`<div>
     ${[["flat","Flat struktur","Samme ukestruktur hele veien. Lavest skaderisiko, forutsigbar. Anbefalt for skadeutsatte/travle."],
        ["blokk","Blokk: 2 harde + 1 lett","Hver tredje uke er lett (~35 % mindre volum). Variasjon og løft – for erfarne."],
-       ["progressiv_x","Progressiv X-økt","Terskel står fast, X-økta spisses gradvis mot måldato. Anbefalt mot et konkret løp (egen X-økt krever 5-6 økter/uke)."]].map(([v,l,d])=>html`
+       ["progressiv_x","Progressiv X-økt","Terskel står fast, X-økta spisses gradvis mot måldato. Anbefalt mot et konkret løp (egen X-økt krever 5-6 økter/uke)."],
+       ...(runs >= 7 ? [["manedssyklus","Månedssyklus","4-ukers syklus: uke 1-2 volum (120 %), uke 3 kvalitet (90 %), uke 4 regenerering (70 %). Kap. 8 – for 7-8 økter/uke."]] : [])]
+      .map(([v,l,d])=>html`
       <button key=${v} onClick=${()=>setPeriod(v)} style=${chip(pVal===v)}>
         <span style=${{fontWeight:600}}>${l}${v===recP?" · anbefalt":""}</span>
         <span style=${{display:"block",fontSize:12,opacity:0.8,marginTop:2}}>${d}</span>
@@ -2271,17 +2436,19 @@ function BuilderWizard({ unit, thresholdKmh, profile, onClose, onCreated }) {
   else {
     const gen = generateProgram(opts(), "preview");
     const w1 = gen.weeks[0];
+    const periodLabel = pVal === "flat" ? "flat struktur" : pVal === "blokk" ? "blokkperiodisering" : pVal === "manedssyklus" ? "månedssyklus" : "progressiv X-økt";
+    const dblLabel = runs >= 7 && dblVal !== "ingen" ? ` · dobbel terskel: ${dblVal === "annenhver" ? "annenhver uke" : "full"}` : "";
     bodyEl = html`<div>
       <div style=${{background:"var(--color-background-secondary)",borderRadius:"var(--border-radius-md)",padding:"14px 16px",marginBottom:12,fontSize:14,lineHeight:1.7}}>
         <b>${meta.label}</b> · ${gen.weeksCount} uker fra ${gen.startDate}<br/>
-        ${runs} løpeøkter/uke${sVal ? ` + ${sVal} styrke` : ""} · ${pVal === "flat" ? "flat struktur" : pVal === "blokk" ? "blokkperiodisering" : "progressiv X-økt"}<br/>
+        ${runs} løpeøkter/uke${sVal ? ` + ${sVal} styrke` : ""} · ${periodLabel}${dblLabel}<br/>
         ${w1 ? w1.info : ""}
       </div>
       ${w1 && html`<div style=${{marginBottom:12}}>
         <p class="eyebrow" style=${{margin:"0 0 6px"}}>Uke 1</p>
         ${w1.sessions.map(s=>html`
           <p key=${s.id} style=${{margin:"0 0 5px",fontSize:13,color:"var(--color-text-secondary)"}}>
-            <b style=${{color:"var(--color-text-primary)"}}>${s.plannedDay}:</b> ${s.type==="strength" ? `Styrke (ca. ${sessionMinutes(s)} min)` : segmentSummary(s)}
+            <b style=${{color:"var(--color-text-primary)"}}>${s.plannedDay}${s.timeOfDay ? ` (${s.timeOfDay})` : ""}:</b> ${s.type==="strength" ? `Styrke (ca. ${sessionMinutes(s)} min)` : segmentSummary(s)}
           </p>`)}
       </div>`}
       <label style=${{display:"block",fontSize:12,color:"var(--color-text-secondary)",marginBottom:5}}>Navn på programmet</label>
@@ -2643,7 +2810,7 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
         <button onClick=${()=>onOpenSession(next)} class="card" style=${{
           width:"100%",textAlign:"left",cursor:"pointer",padding:"18px 20px",marginBottom:18,display:"block"}}>
           <p class="eyebrow" style=${{margin:"0 0 8px",color:"var(--color-accent-dark)"}}>Neste økt</p>
-          <p style=${{margin:"0 0 12px",fontSize:22,fontWeight:600,letterSpacing:"-0.01em",lineHeight:1.15}}>Uke ${next.week} · ${next.plannedDay}${next.plannedDate ? ` ${(d=>`${d.getDate()}.${d.getMonth()+1}`)(parseKey(next.plannedDate))}` : ""}${next.type === "strength" ? " · Styrke" : ""}</p>
+          <p style=${{margin:"0 0 12px",fontSize:22,fontWeight:600,letterSpacing:"-0.01em",lineHeight:1.15}}>Uke ${next.week} · ${next.plannedDay}${next.timeOfDay ? ` (${next.timeOfDay})` : ""}${next.plannedDate ? ` ${(d=>`${d.getDate()}.${d.getMonth()+1}`)(parseKey(next.plannedDate))}` : ""}${next.type === "strength" ? " · Styrke" : ""}</p>
           <p class="mono" style=${{margin:0,fontSize:13,color:"var(--color-text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>${segmentSummary(next)}</p>
           <span style=${{display:"inline-flex",alignItems:"center",gap:6,marginTop:14,fontSize:14,fontWeight:600,color:"var(--color-accent-dark)"}}>Åpne økta <i class="ti ti-arrow-right"></i></span>
         </button>`}
@@ -2702,7 +2869,7 @@ function ProgramView({ log, onOpenWeek, onOpenSession, stravaConnected, onConnec
           <p style=${{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Om programmet</p>
           <p style=${{margin:"0 0 8px",fontSize:13,lineHeight:1.6,color:"var(--color-text-secondary)"}}>
             ${(GOAL_META[custom.goal] || { label: custom.goal }).label} · ${(custom.program_json && custom.program_json.weeksCount) || ((custom.program_json && custom.program_json.weeks) || []).length} uker${custom.goal_date ? ` · løpsdag ${custom.goal_date}` : ""} · ${custom.runs_per_week} løpeøkter/uke${custom.strength_per_week ? ` + ${custom.strength_per_week} styrke` : ""} ·
-            ${custom.periodization === "flat" ? " flat struktur" : custom.periodization === "blokk" ? " blokk (2 harde + 1 lett)" : " progressiv X-økt"}${custom.level_kmh ? ` · terskelfart ved start: ${custom.level_kmh} km/t` : ""}
+            ${custom.periodization === "flat" ? " flat struktur" : custom.periodization === "blokk" ? " blokk (2 harde + 1 lett)" : custom.periodization === "manedssyklus" ? " månedssyklus" : " progressiv X-økt"}${custom.program_json && custom.program_json.doubleThreshold && custom.program_json.doubleThreshold !== "ingen" ? ` · dobbel terskel: ${custom.program_json.doubleThreshold === "annenhver" ? "annenhver uke" : "full"}` : ""}${custom.level_kmh ? ` · terskelfart ved start: ${custom.level_kmh} km/t` : ""}
           </p>
           <p style=${{margin:"0 0 2px",fontSize:13,fontWeight:600,color:"var(--color-text-info)"}}>Når tiden ikke strekker til</p>
           <p style=${{margin:"0 0 8px",fontSize:13,lineHeight:1.55,color:"var(--color-text-secondary)"}}>Prioriter i denne rekkefølgen: 1) hovedkvalitetsøkt, 2) støtteøkt, 3) langtur (kan kortes), 4) rolige økter. Minimum én terskeløkt i uken.</p>
@@ -2840,7 +3007,7 @@ function StatsView({ log, unit, extraSessions }) {
           ${notes.map((x,i)=>html`
             <div key=${x.s.id} style=${{padding:"10px 0",borderTop:i===0?"none":"0.5px solid var(--color-border-tertiary)"}}>
               <div style=${{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
-                <span style=${{fontSize:13,fontWeight:500}}>Uke ${x.s.week} · ${x.s.plannedDay}${x.s.type==="strength"?" · Styrke":""}</span>
+                <span style=${{fontSize:13,fontWeight:500}}>Uke ${x.s.week} · ${x.s.plannedDay}${x.s.timeOfDay ? ` (${x.s.timeOfDay})` : ""}${x.s.type==="strength"?" · Styrke":""}</span>
                 <span class="mono" style=${{fontSize:12,color:"var(--color-text-tertiary)",flexShrink:0}}>${x.r.done_date||""}</span>
               </div>
               ${(x.r.rpe != null || x.r.feeling) && html`<p style=${{margin:"3px 0 0",fontSize:12,color:"var(--color-text-tertiary)"}}>${x.r.rpe != null ? `RPE ${x.r.rpe}` : ""}${x.r.rpe != null && x.r.feeling ? " · " : ""}${x.r.feeling ? `føltes ${x.r.feeling}` : ""}</p>`}
