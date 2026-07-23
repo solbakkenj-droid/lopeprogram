@@ -75,6 +75,10 @@
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     textarea, input { font-family: var(--font-sans); color: var(--color-text-primary); background: transparent; }
     input[type="date"], input[type="number"], input[type="text"] { padding: 9px 12px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 15px; }
+    /* E-post/passord på innloggingsskjermen manglet egen styling (falt tilbake til
+       nettleser-default, som kan være under 16px – iOS zoomer da inn automatisk ved
+       fokus). 16px (ikke 15px som over) unngår det helt. */
+    input[type="email"], input[type="password"] { padding: 9px 12px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 16px; }
     .btn-primary { background: var(--color-accent) !important; color: #fff !important; border: none !important; }
     .btn-blue { background: #2563eb !important; color: #fff !important; border: none !important; }
 
@@ -3114,18 +3118,19 @@ function LoginScreen() {
         <p style=${{margin:"6px 0 0",fontSize:14,color:"var(--color-text-secondary)"}}>${mode==="signup" ? "Opprett din egen treningslogg" : "Logg inn for din egen treningslogg"}</p>
       </div>
       <div class="card" style=${{padding:"20px"}}>
-        <label style=${{display:"block",fontSize:13,color:"var(--color-text-secondary)",marginBottom:6}}>E-post</label>
-        <input type="email" inputmode="email" autocomplete="email" value=${email} onInput=${e=>setEmail(e.target.value)} placeholder="deg@epost.no"
-          style=${{width:"100%",boxSizing:"border-box",marginBottom:12}}/>
-        <label style=${{display:"block",fontSize:13,color:"var(--color-text-secondary)",marginBottom:6}}>Passord</label>
-        <input type="password" autocomplete=${mode==="signup"?"new-password":"current-password"} value=${pw} onInput=${e=>setPw(e.target.value)} placeholder=${mode==="signup"?"Minst 6 tegn":"Passord"}
-          onKeyDown=${e=>{ if(e.key==="Enter") submit(); }}
-          style=${{width:"100%",boxSizing:"border-box",marginBottom:12}}/>
-        ${err && html`<p style=${{margin:"0 0 10px",fontSize:13,color:"#ff3b30"}}>${err}</p>`}
-        <button onClick=${submit} disabled=${busy||!email.trim()||!pw} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15}}>
-          ${busy ? "Vent…" : (mode==="signup" ? "Opprett konto" : "Logg inn")}
-        </button>
-        <button onClick=${()=>{ setMode(mode==="signup"?"signin":"signup"); setErr(""); }} style=${{width:"100%",marginTop:12,padding:"8px",fontSize:13,fontWeight:600,background:"none",border:"none",color:"var(--color-accent-dark)"}}>
+        <form onSubmit=${e=>{ e.preventDefault(); submit(); }}>
+          <label for="login-email" style=${{display:"block",fontSize:13,color:"var(--color-text-secondary)",marginBottom:6}}>E-post</label>
+          <input id="login-email" name="email" type="email" inputmode="email" autocomplete="email" value=${email} onInput=${e=>setEmail(e.target.value)} placeholder="deg@epost.no"
+            style=${{width:"100%",boxSizing:"border-box",marginBottom:12}}/>
+          <label for="login-password" style=${{display:"block",fontSize:13,color:"var(--color-text-secondary)",marginBottom:6}}>Passord</label>
+          <input id="login-password" name="password" type="password" autocomplete=${mode==="signup"?"new-password":"current-password"} value=${pw} onInput=${e=>setPw(e.target.value)} placeholder=${mode==="signup"?"Minst 6 tegn":"Passord"}
+            style=${{width:"100%",boxSizing:"border-box",marginBottom:12}}/>
+          ${err && html`<p style=${{margin:"0 0 10px",fontSize:13,color:"#ff3b30"}}>${err}</p>`}
+          <button type="submit" disabled=${busy||!email.trim()||!pw} class="btn-primary" style=${{width:"100%",padding:"14px",fontSize:15}}>
+            ${busy ? "Vent…" : (mode==="signup" ? "Opprett konto" : "Logg inn")}
+          </button>
+        </form>
+        <button type="button" onClick=${()=>{ setMode(mode==="signup"?"signin":"signup"); setErr(""); }} style=${{width:"100%",marginTop:12,padding:"8px",fontSize:13,fontWeight:600,background:"none",border:"none",color:"var(--color-accent-dark)"}}>
           ${mode==="signup" ? "Har du konto? Logg inn" : "Ny her? Opprett konto"}
         </button>
       </div>
